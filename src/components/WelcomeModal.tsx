@@ -85,35 +85,37 @@ export function WelcomeModal({ open, onClose, onAddSpot }: WelcomeModalProps) {
             <div className="min-w-0 flex-1 text-center sm:text-left">
               <p
                 id="welcome-title"
-                className="font-pixel text-[11px] leading-relaxed text-[#7dff9a] sm:text-[12px]"
+                className="font-display text-lg font-semibold tracking-tight text-[#7dff9a] sm:text-xl"
               >
-                COMMUNITY MAP
+                Community map
               </p>
-              <p className="mt-1 font-pixel text-[9px] uppercase tracking-wider text-[#c8b48a]">
+              <p className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-[#c8b48a]">
                 Built by the city · for the city
               </p>
             </div>
           </div>
 
-          <div className="koh-about-copy mt-4 space-y-3 font-pixel text-[9px] leading-[1.85] text-[#f0e6c8] sm:text-[10px]">
+          <div className="koh-about-copy mt-4 space-y-3 text-sm leading-relaxed text-[#f0e6c8]">
             <p>
               This is a community-driven map of Islamabad. Know a good spot?
               Something happening soon? Drop it on the map.
             </p>
             <p>
-              <span className="text-[#7dff9a]">1.</span> Add spots you know —
-              cafés, trails, hangouts, hidden gems.
+              <span className="font-semibold text-[#7dff9a]">1.</span> Add spots
+              you know — cafés, trails, hangouts, hidden gems.
             </p>
             <p>
-              <span className="text-[#ff9a4a]">2.</span> Share upcoming events —
-              gigs, markets, meetups, anything worth showing up for.
+              <span className="font-semibold text-[#ff9a4a]">2.</span> Share
+              upcoming events — gigs, markets, meetups, anything worth showing
+              up for.
             </p>
             <p>
-              <span className="text-[#c8b48a]">3.</span> New pins show as pending
-              until someone verifies them — then they go live for everyone.
+              <span className="font-semibold text-[#c8b48a]">3.</span> New pins
+              show as pending until someone verifies them — then they go live
+              for everyone.
             </p>
-            <p className="text-[#7dff9a]">
-              &gt; Press X to close. Or click the fog.
+            <p className="text-xs text-[#7dff9a]">
+              Press X to close, or click outside.
               <span className="koh-about-cursor" aria-hidden>
                 _
               </span>
@@ -127,16 +129,16 @@ export function WelcomeModal({ open, onClose, onAddSpot }: WelcomeModalProps) {
                 onClose();
                 onAddSpot();
               }}
-              className="koh-about-btn flex-1 font-pixel"
+              className="koh-about-btn flex-1"
             >
-              ADD A SPOT
+              Add a spot
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="koh-about-btn koh-about-btn-secondary flex-1 font-pixel"
+              className="koh-about-btn koh-about-btn-secondary flex-1"
             >
-              EXPLORE MAP
+              Explore map
             </button>
           </div>
         </div>

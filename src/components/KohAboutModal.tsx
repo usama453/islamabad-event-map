@@ -66,17 +66,17 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
             <div className="min-w-0 flex-1 text-center sm:text-left">
               <p
                 id="koh-about-title"
-                className="font-pixel text-[11px] leading-relaxed text-[#7dff9a] sm:text-[12px]"
+                className="font-display text-lg font-semibold tracking-tight text-[#7dff9a] sm:text-xl"
               >
-                ISLAMABAD EXPLORE
+                Islamabad Explore
               </p>
-              <p className="mt-1 font-pixel text-[9px] uppercase tracking-wider text-[#c8b48a]">
+              <p className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-[#c8b48a]">
                 Level 1 · City unlocked
               </p>
             </div>
           </div>
 
-          <div className="koh-about-copy mt-4 space-y-3 font-pixel text-[9px] leading-[1.85] text-[#f0e6c8] sm:text-[10px]">
+          <div className="koh-about-copy mt-4 space-y-3 text-sm leading-relaxed text-[#f0e6c8]">
             <p>
               Hey. I&apos;m Koh. I walk these sectors so you don&apos;t have to
               guess where the good stuff is.
@@ -94,8 +94,8 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
               Tap a pin. Filter the chaos. Drop your own find. Margalla&apos;s
               that way. Always.
             </p>
-            <p className="text-[#7dff9a]">
-              &gt; Press X to close. Or just click the fog outside.
+            <p className="text-xs text-[#7dff9a]">
+              Press X to close, or click outside.
               <span className="koh-about-cursor" aria-hidden>
                 _
               </span>
@@ -105,9 +105,9 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="koh-about-btn mt-5 w-full font-pixel"
+            className="koh-about-btn mt-5 w-full"
           >
-            GOT IT
+            Got it
           </button>
         </div>
       </div>
