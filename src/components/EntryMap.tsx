@@ -647,7 +647,7 @@ export function EntryMap({
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-[4.75rem] right-3 z-10 flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm dark:bg-surface-raised/90 sm:bottom-16">
+      <div className="pointer-events-none absolute bottom-16 right-3 z-10 hidden flex-wrap items-center justify-end gap-x-3 gap-y-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink shadow-sm sm:bottom-16 sm:flex">
         <span className="inline-flex items-center gap-1.5">
           <span className="pin-event inline-flex h-5 w-5 items-center justify-center rounded-full border-0 text-white">
             <EventPinIcon className="h-3 w-3" />

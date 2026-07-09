@@ -130,18 +130,18 @@ export function ViewerTicker({ className = "" }: ViewerTickerProps) {
 
   return (
     <div
-      className={`viewer-crowd pointer-events-none flex items-end gap-2.5 rounded-full border border-line bg-surface/95 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:bg-surface-raised/95 ${className}`}
+      className={`viewer-crowd pointer-events-none flex items-end gap-1.5 rounded-full border border-line bg-surface px-2 py-1 shadow-sm dark:bg-surface-raised ${className}`}
       aria-live="polite"
       aria-label={label}
       title={label}
     >
-      <div className="relative flex h-7 items-end">
+      <div className="relative flex h-5 items-end sm:h-6">
         {people.map((person, index) => (
           <span
             key={person.id}
-            className="viewer-person absolute bottom-0"
+            className="viewer-person absolute bottom-0 scale-[0.72] origin-bottom-left sm:scale-90"
             style={{
-              left: `${index * 11}px`,
+              left: `${index * 8}px`,
               zIndex: index + 1,
               animationDelay: `${index * 80}ms`,
             }}
@@ -155,21 +155,21 @@ export function ViewerTicker({ className = "" }: ViewerTickerProps) {
         ))}
         <span
           className="block"
-          style={{ width: `${Math.max(18, (visible - 1) * 11 + 18)}px` }}
+          style={{ width: `${Math.max(14, (visible - 1) * 8 + 14)}px` }}
           aria-hidden
         />
       </div>
 
       {overflow > 0 && (
-        <span className="mb-0.5 rounded-full bg-wash px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-ink-muted">
+        <span className="mb-0.5 rounded-full bg-wash px-1 py-0.5 text-[9px] font-bold tabular-nums text-ink-muted">
           +{overflow}
         </span>
       )}
 
-      <p className="mb-0.5 whitespace-nowrap text-xs font-semibold text-ink">
+      <p className="mb-0.5 whitespace-nowrap text-[10px] font-semibold text-ink sm:text-[11px]">
         <span className="tabular-nums text-[var(--blue)]">{count}</span>{" "}
         <span className="text-ink-muted">
-          {count === 1 ? "person viewing" : "people viewing"}
+          {count === 1 ? "viewing" : "viewing"}
         </span>
       </p>
     </div>

@@ -227,7 +227,7 @@ export function HomePage() {
           onClick={() => setMapExpanded((v) => !v)}
           aria-expanded={mapExpanded}
           aria-label={mapExpanded ? "Collapse map" : "Expand map"}
-          className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/95 px-3 py-2 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm transition hover:bg-wash lg:hidden dark:bg-surface-raised/95"
+          className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink shadow-sm transition hover:bg-wash lg:hidden"
         >
           {mapExpanded ? (
             <>
@@ -268,7 +268,11 @@ export function HomePage() {
           mapExpanded ? "hidden lg:flex" : "flex min-h-0 flex-1"
         }`}
       >
-        <Header variant="sidebar" />
+        <Header
+          variant="sidebar"
+          listingCount={filteredEntries.length}
+          viewFilter={viewFilter}
+        />
 
         {showSubmit ? (
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-4">

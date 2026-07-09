@@ -32,16 +32,6 @@ function emptyLabel(viewFilter: ViewFilter): string {
   return "listings";
 }
 
-function countLabel(count: number, viewFilter: ViewFilter): string {
-  if (viewFilter === "event") {
-    return `${count} event${count !== 1 ? "s" : ""}`;
-  }
-  if (viewFilter === "place") {
-    return `${count} spot${count !== 1 ? "s" : ""}`;
-  }
-  return `${count} listing${count !== 1 ? "s" : ""}`;
-}
-
 function ChevronIcon({
   className = "",
   up = false,
@@ -161,9 +151,6 @@ export function EntryList({
 
   return (
     <div>
-      <p className="mb-1.5 text-xs text-ink-muted sm:mb-4 sm:text-sm">
-        {countLabel(entries.length, viewFilter)}
-      </p>
       <div className="flex flex-col gap-0.5 sm:gap-1">
         {previewEntries.map((entry, index) => {
           const stagger = Math.min(index, STACK_MAX_STAGGER);
