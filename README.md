@@ -51,15 +51,15 @@ Open [http://localhost:3000](http://localhost:3000).
 
 1. Browse the list + map; filter by All / Events / Places, category, and date
 2. Click a listing or map pin to sync selection
-3. Use **Suggest** in the header to submit a place or event (saved as `pending`)
-4. You approve in Airtable → it appears on the live map after refresh
+3. Use **Suggest** to submit a place or event (saved as `pending`)
+4. Pending listings show on the map/list in amber until you approve them in Airtable
 
 ## Admin approval
 
 1. Open the **Entries** table in Airtable
 2. Filter `Status = pending`
 3. Set `approved` or `rejected`
-4. Approved rows show on the site (refresh)
+4. Approved keep orange/blue styling; rejected disappear from the site
 
 ## Deploy to Vercel (for user testing)
 
@@ -77,5 +77,5 @@ Airtable credentials stay server-side; only `NEXT_PUBLIC_MAPBOX_TOKEN` is expose
 
 ## API
 
-- `GET /api/entries` — approved entries
+- `GET /api/entries` — approved + pending entries (rejected excluded)
 - `POST /api/entries` — create pending entry (honeypot field: `website`)

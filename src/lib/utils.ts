@@ -134,6 +134,11 @@ export function matchesDateFilter(
   return eventDay <= weekEnd;
 }
 
+function statusRank(status: Entry["status"]): number {
+  // Approved first, then pending; rejected shouldn't appear
+  return status === "approved" ? 0 : 1;
+}
+
 export function sortEntries(
   entries: Entry[],
   type: "all" | "event" | "place"
@@ -141,9 +146,11 @@ export function sortEntries(
   const sorted = [...entries];
 
   if (type === "all") {
-    // Events first (soonest), then places A–Z
+    // Events first (soonest), then places A–Z; approved before pending
     sorted.sort((a, b) => {
       if (a.type !== b.type) return a.type === "event" ? -1 : 1;
+      const byStatus = statusRank(a.status) - statusRank(b.status);
+      if (byStatus !== 0) return byStatus;
       if (a.type === "event") {
         if (!a.eventDate && !b.eventDate) return a.title.localeCompare(b.title);
         if (!a.eventDate) return 1;
@@ -157,13 +164,19 @@ export function sortEntries(
 
   if (type === "event") {
     sorted.sort((a, b) => {
+      const byStatus = statusRank(a.status) - statusRank(b.status);
+      if (byStatus !== 0) return byStatus;
       if (!a.eventDate && !b.eventDate) return a.title.localeCompare(b.title);
       if (!a.eventDate) return 1;
       if (!b.eventDate) return -1;
       return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
     });
   } else {
-    sorted.sort((a, b) => a.title.localeCompare(b.title));
+    sorted.sort((a, b) => {
+      const byStatus = statusRank(a.status) - statusRank(b.status);
+      if (byStatus !== 0) return byStatus;
+      return a.title.localeCompare(b.title);
+    });
   }
 
   return sorted;

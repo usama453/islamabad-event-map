@@ -77,19 +77,24 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
   const metaLine = isEvent ? schedule ?? "Date TBA" : "Open regularly";
   const soon = isEvent && isEventHappeningSoon(entry);
   const soonLabel = soon ? happeningSoonLabel(entry) : null;
+  const isPending = entry.status === "pending";
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={`group flex w-full items-start gap-3.5 rounded-xl border p-2 text-left transition ${
-        isSelected
-          ? isEvent
-            ? "entry-card-event-selected border-transparent"
-            : "btn-primary btn-primary-selected border-transparent"
-          : isEvent
-            ? "entry-card-event"
-            : "entry-card-place"
+        isPending
+          ? isSelected
+            ? "entry-card-pending-selected border-transparent"
+            : "entry-card-pending"
+          : isSelected
+            ? isEvent
+              ? "entry-card-event-selected border-transparent"
+              : "btn-primary btn-primary-selected border-transparent"
+            : isEvent
+              ? "entry-card-event"
+              : "entry-card-place"
       }`}
     >
       <div className="relative h-[72px] w-[96px] shrink-0 overflow-hidden rounded-lg bg-line sm:h-[80px] sm:w-[108px]">
@@ -97,12 +102,18 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
           src={image}
           alt=""
           fill
-          className="object-cover transition duration-300 group-hover:scale-[1.03]"
+          className={`object-cover transition duration-300 group-hover:scale-[1.03] ${
+            isPending ? "opacity-85 saturate-[0.7]" : ""
+          }`}
           sizes="108px"
         />
         <span
           className={`absolute left-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-white shadow-sm ${
-            isEvent ? "bg-[var(--orange)]" : "bg-[var(--blue)]"
+            isPending
+              ? "bg-[var(--pending)]"
+              : isEvent
+                ? "bg-[var(--orange)]"
+                : "bg-[var(--blue)]"
           }`}
           aria-hidden
         >
@@ -120,9 +131,11 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
             className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
               isSelected
                 ? "bg-white/20 text-white"
-                : isEvent
-                  ? "entry-type-event"
-                  : "entry-type-place"
+                : isPending
+                  ? "pending-badge"
+                  : isEvent
+                    ? "entry-type-event"
+                    : "entry-type-place"
             }`}
           >
             {isEvent ? (
@@ -139,6 +152,15 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
           >
             {CATEGORY_LABELS[entry.category]}
           </span>
+          {isPending && (
+            <span
+              className={`pending-badge ${
+                isSelected ? "pending-badge-on-dark" : ""
+              }`}
+            >
+              Awaiting review
+            </span>
+          )}
           {soonLabel && (
             <span
               className={`soon-badge ${isSelected ? "soon-badge-on-dark" : ""}`}
@@ -161,9 +183,11 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
           className={`mt-1.5 flex items-center gap-1.5 truncate text-sm font-medium ${
             isSelected
               ? "text-white/90"
-              : isEvent
-                ? "entry-meta-event"
-                : "entry-meta-place"
+              : isPending
+                ? "text-[var(--pending-deep)]"
+                : isEvent
+                  ? "entry-meta-event"
+                  : "entry-meta-place"
           }`}
         >
           {isEvent ? (

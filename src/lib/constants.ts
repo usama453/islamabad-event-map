@@ -28,10 +28,11 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   other: "Other",
 };
 
-/** Map pins use only these two colors — by entry type, not category */
+/** Map pins — by entry type; pending overrides with amber */
 export const MAP_PIN_COLORS = {
   event: "#D94A00",
   place: "#0051FF",
+  pending: "#A67C00",
 } as const;
 
 /** Multiple Unsplash options per category so listings don't all share one photo */

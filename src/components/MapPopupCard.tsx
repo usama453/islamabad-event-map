@@ -41,7 +41,8 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
   const body = entryBodyText(entry);
   const contactPhone = entryContactPhone(entry);
   const isEvent = entry.type === "event";
-  const soonLabel = isEvent ? happeningSoonLabel(entry) : null;
+  const isPending = entry.status === "pending";
+  const soonLabel = isEvent && !isPending ? happeningSoonLabel(entry) : null;
   const goingBase = useMemo(() => seedCount(entry.id, 12, 48), [entry.id]);
   const likeBase = useMemo(() => seedCount(entry.id + "♥", 8, 90), [entry.id]);
   const reviewBase = useMemo(
@@ -128,7 +129,11 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
         </button>
         <span
           className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white ${
-            isEvent ? "bg-[var(--orange)]" : "bg-[var(--blue)]"
+            isPending
+              ? "bg-[var(--pending)]"
+              : isEvent
+                ? "bg-[var(--orange)]"
+                : "bg-[var(--blue)]"
           }`}
         >
           {isEvent ? "Event" : "Place"} · {CATEGORY_LABELS[entry.category]}
@@ -142,6 +147,11 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
 
       <div className="space-y-3 bg-surface p-3.5">
         <div className="space-y-1 text-sm">
+          {isPending && (
+            <p className="mb-1 rounded-lg border border-dashed border-[color-mix(in_srgb,var(--pending)_45%,transparent)] bg-[var(--pending-soft)] px-2.5 py-1.5 text-xs font-medium text-[var(--pending-deep)]">
+              Awaiting admin review — not verified yet.
+            </p>
+          )}
           {soonLabel && (
             <span className="soon-badge mb-1">
               <span className="soon-badge-dot" aria-hidden />

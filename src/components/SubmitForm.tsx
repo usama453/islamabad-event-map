@@ -213,7 +213,7 @@ export function SubmitForm({
           Submitted for review
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-          It will appear on the map once approved.
+          It&apos;s on the map now in amber as pending — an admin will verify it.
         </p>
         <button
           type="button"

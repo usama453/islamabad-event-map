@@ -62,11 +62,13 @@ function mapRecord(record: Airtable.Record<FieldSet>): Entry {
   };
 }
 
-export async function fetchApprovedEntries(): Promise<Entry[]> {
+/** Public listings: approved + pending (rejected stay hidden). */
+export async function fetchPublicEntries(): Promise<Entry[]> {
   const records: Records<FieldSet> = await getBase()(TABLE_NAME)
     .select({
-      // Case-insensitive so Airtable option casing mismatches still work
-      filterByFormula: "LOWER({Status}) = 'approved'",
+      // Case-insensitive; blank Status treated as pending; hide rejected
+      filterByFormula:
+        "OR(LOWER({Status}) = 'approved', LOWER({Status}) = 'pending', {Status} = BLANK())",
     })
     .all();
 

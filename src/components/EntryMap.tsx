@@ -39,6 +39,8 @@ interface EntryMapProps {
   onSuggest?: () => void;
   /** Open suggest form with a pin already dropped at these coords */
   onSuggestAt?: (lat: number, lng: number) => void;
+  /** Start one-by-one pin drop after splash */
+  animatePins?: boolean;
 }
 
 function EventPinIcon({ className }: { className?: string }) {
@@ -95,6 +97,7 @@ function PlacePinIcon({ className }: { className?: string }) {
 
 function PinTooltip({ entry }: { entry: Entry }) {
   const isEvent = entry.type === "event";
+  const isPending = entry.status === "pending";
   const schedule = formatEventSchedule(entry);
   const location =
     entry.locationText?.trim() ||
@@ -107,7 +110,11 @@ function PinTooltip({ entry }: { entry: Entry }) {
       <div className="flex flex-wrap items-center gap-1.5">
         <span
           className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-white ${
-            isEvent ? "bg-[var(--orange)]" : "bg-[var(--blue)]"
+            isPending
+              ? "bg-[var(--pending)]"
+              : isEvent
+                ? "bg-[var(--orange)]"
+                : "bg-[var(--blue)]"
           }`}
         >
           {isEvent ? (
@@ -118,7 +125,11 @@ function PinTooltip({ entry }: { entry: Entry }) {
         </span>
         <span
           className={`text-[10px] font-bold uppercase tracking-wide ${
-            isEvent ? "text-[var(--orange)]" : "text-[var(--blue)]"
+            isPending
+              ? "text-[var(--pending)]"
+              : isEvent
+                ? "text-[var(--orange)]"
+                : "text-[var(--blue)]"
           }`}
         >
           {isEvent ? "Event" : "Place"}
@@ -126,6 +137,7 @@ function PinTooltip({ entry }: { entry: Entry }) {
         <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
           {CATEGORY_LABELS[entry.category]}
         </span>
+        {isPending && <span className="pending-badge">Pending</span>}
         {soonLabel && (
           <span className="soon-badge">
             <span className="soon-badge-dot" aria-hidden />
@@ -138,7 +150,11 @@ function PinTooltip({ entry }: { entry: Entry }) {
       </p>
       <p
         className={`mt-1 truncate text-[11px] font-medium ${
-          isEvent ? "entry-meta-event" : "entry-meta-place"
+          isPending
+            ? "text-[var(--pending-deep)]"
+            : isEvent
+              ? "entry-meta-event"
+              : "entry-meta-place"
         }`}
       >
         {meta}
@@ -153,20 +169,23 @@ function MapPin({
   isSelected,
   showTooltip,
   onHoverChange,
+  enter,
 }: {
   entry: Entry;
   isSelected: boolean;
   showTooltip: boolean;
   onHoverChange: (hovering: boolean) => void;
+  enter?: boolean;
 }) {
-  const color = MAP_PIN_COLORS[entry.type];
   const isEvent = entry.type === "event";
-  const soon = isEvent && isEventHappeningSoon(entry);
+  const isPending = entry.status === "pending";
+  const color = isPending ? MAP_PIN_COLORS.pending : MAP_PIN_COLORS[entry.type];
+  const soon = isEvent && !isPending && isEventHappeningSoon(entry);
   const soonLabel = soon ? happeningSoonLabel(entry) : null;
 
   return (
     <div
-      className="relative"
+      className={`relative ${enter ? "map-pin-enter" : ""}`}
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
     >
@@ -177,13 +196,19 @@ function MapPin({
       )}
       <button
         type="button"
-        aria-label={`${isEvent ? "Event" : "Place"}: ${entry.title}${
-          soonLabel ? ` — ${soonLabel}` : ""
+        aria-label={`${isPending ? "Pending " : ""}${
+          isEvent ? "Event" : "Place"
+        }: ${entry.title}${soonLabel ? ` — ${soonLabel}` : ""}${
+          isPending ? " — awaiting review" : ""
         }`}
         className={`relative flex h-7 w-7 items-center justify-center rounded-full border-0 text-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-transform dark:shadow-[0_2px_10px_rgba(0,0,0,0.55)] ${
-          isEvent ? "pin-event" : ""
-        } ${isSelected ? "scale-125" : "hover:scale-110"}`}
-        style={isEvent ? undefined : { backgroundColor: color }}
+          isPending ? "pin-pending" : isEvent ? "pin-event" : ""
+        } ${isSelected ? "scale-125" : "hover:scale-110"} ${
+          isPending ? "ring-2 ring-dashed ring-white/80" : ""
+        }`}
+        style={
+          isPending || isEvent ? undefined : { backgroundColor: color }
+        }
       >
         {soon && <span className="pin-soon-ring" aria-hidden />}
         {isEvent ? (
@@ -212,6 +237,7 @@ export function EntryMap({
   onCancelPinMode,
   onSuggest,
   onSuggestAt,
+  animatePins = false,
 }: EntryMapProps) {
   const mapRef = useRef<MapRef>(null);
   const { theme } = useTheme();
@@ -221,8 +247,76 @@ export function EntryMap({
     lat: number;
     lng: number;
   } | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [visiblePinCount, setVisiblePinCount] = useState(0);
+  const [enteringPinIds, setEnteringPinIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const pinRevealDone = useRef(false);
 
   const mappableEntries = entries.filter(hasCoordinates);
+  const mappableIdsKey = mappableEntries.map((e) => e.id).join("|");
+
+  // Reveal pins one-by-one after splash + map ready
+  useEffect(() => {
+    if (!mapReady || !animatePins || pinMode || mappableEntries.length === 0)
+      return;
+    if (pinRevealDone.current) {
+      // After intro, show any newly added pins immediately
+      setVisiblePinCount(mappableEntries.length);
+      return;
+    }
+
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduceMotion) {
+      setVisiblePinCount(mappableEntries.length);
+      pinRevealDone.current = true;
+      return;
+    }
+
+    const pins = mappableEntries;
+    setVisiblePinCount(0);
+    let i = 0;
+    const stepMs = Math.max(
+      55,
+      Math.min(120, 2200 / Math.max(pins.length, 1))
+    );
+    const clearEnterTimers: number[] = [];
+
+    const tick = () => {
+      i += 1;
+      const next = pins[i - 1];
+      if (next) {
+        setEnteringPinIds((prev) => new Set(prev).add(next.id));
+        clearEnterTimers.push(
+          window.setTimeout(() => {
+            setEnteringPinIds((prev) => {
+              const copy = new Set(prev);
+              copy.delete(next.id);
+              return copy;
+            });
+          }, 450)
+        );
+      }
+      setVisiblePinCount(i);
+      if (i >= pins.length) {
+        pinRevealDone.current = true;
+        return;
+      }
+      timer = window.setTimeout(tick, stepMs);
+    };
+
+    let timer = window.setTimeout(tick, 120);
+    return () => {
+      window.clearTimeout(timer);
+      clearEnterTimers.forEach((id) => window.clearTimeout(id));
+    };
+    // mappableIdsKey tracks identity; length covered by that key
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, animatePins, pinMode, mappableIdsKey]);
 
   useEffect(() => {
     if (pinMode) {
@@ -309,6 +403,7 @@ export function EntryMap({
             : "mapbox://styles/mapbox/streets-v12"
         }
         cursor={pinMode ? "crosshair" : undefined}
+        onLoad={() => setMapReady(true)}
         onClick={(e) => {
           if (pinMode && onDraftPinChange) {
             onDraftPinChange(e.lngLat.lat, e.lngLat.lng);
@@ -336,13 +431,16 @@ export function EntryMap({
       >
         <NavigationControl position="top-right" showCompass={false} />
 
-        {mappableEntries.map((entry) => {
+        {mappableEntries
+          .slice(0, pinMode ? mappableEntries.length : visiblePinCount)
+          .map((entry) => {
           const isSelected = !pinMode && selectedId === entry.id;
           const showTooltip =
             !pinMode &&
             hoveredId === entry.id &&
             popupEntry?.id !== entry.id;
           const position = mapPinPosition(entry, mappableEntries);
+          const enter = !pinMode && enteringPinIds.has(entry.id);
 
           return (
             <Marker
@@ -352,7 +450,7 @@ export function EntryMap({
               anchor="bottom"
               style={{
                 zIndex:
-                  showTooltip || isSelected
+                  showTooltip || isSelected || enter
                     ? 30
                     : entry.type === "event"
                       ? 10
@@ -381,6 +479,7 @@ export function EntryMap({
                   entry={entry}
                   isSelected={isSelected}
                   showTooltip={showTooltip}
+                  enter={enter}
                   onHoverChange={(hovering) =>
                     setHoveredId(hovering ? entry.id : null)
                   }
@@ -535,7 +634,7 @@ export function EntryMap({
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-4 right-3 z-10 flex items-center gap-3 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm dark:bg-surface-raised/90">
+      <div className="pointer-events-none absolute bottom-4 right-3 z-10 flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm dark:bg-surface-raised/90">
         <span className="inline-flex items-center gap-1.5">
           <span className="pin-event inline-flex h-5 w-5 items-center justify-center rounded-full border-0 text-white">
             <EventPinIcon className="h-3 w-3" />
@@ -550,6 +649,12 @@ export function EntryMap({
             <PlacePinIcon className="h-3 w-3" />
           </span>
           Places
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="pin-pending inline-flex h-5 w-5 items-center justify-center rounded-full border-0 text-white ring-1 ring-dashed ring-white/70">
+            <PlacePinIcon className="h-3 w-3" />
+          </span>
+          Pending
         </span>
       </div>
 

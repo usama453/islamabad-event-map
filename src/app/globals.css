@@ -37,6 +37,10 @@
   --accent-soft: #d4e0f8;
   --danger: #b42318;
   --danger-soft: #f8e0d4;
+  --pending: #a67c00;
+  --pending-bright: #c9960a;
+  --pending-deep: #7a5a00;
+  --pending-soft: #f5e8c4;
   --map-panel: #e1caa9;
 }
 
@@ -75,6 +79,10 @@
   --accent-soft: #0a1228;
   --danger: #e8a8a8;
   --danger-soft: #2a1c1c;
+  --pending: #d4a017;
+  --pending-bright: #e8b84a;
+  --pending-deep: #a67c00;
+  --pending-soft: #2a2210;
   --map-panel: #151a18;
 }
 
@@ -199,6 +207,71 @@
 .entry-card-place:hover {
   border-color: color-mix(in srgb, var(--blue) 38%, transparent);
   background: var(--blue-soft);
+}
+
+/* Pending (unapproved) listings — amber so they read as “awaiting review” */
+.entry-card-pending {
+  border-color: color-mix(in srgb, var(--pending) 40%, transparent);
+  background: color-mix(in srgb, var(--pending-soft) 55%, transparent);
+  border-style: dashed;
+}
+
+.entry-card-pending:hover {
+  border-color: color-mix(in srgb, var(--pending) 65%, transparent);
+  background: var(--pending-soft);
+}
+
+.entry-card-pending-selected {
+  color: #ffffff;
+  border-color: transparent;
+  border-style: solid;
+  background-color: var(--pending);
+  background-image: linear-gradient(
+    160deg,
+    var(--pending-bright) 0%,
+    var(--pending) 52%,
+    var(--pending-deep) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 230, 160, 0.35),
+    0 2px 8px rgba(122, 90, 0, 0.28);
+}
+
+.pin-pending {
+  background-color: var(--pending);
+  background-image: linear-gradient(
+    160deg,
+    var(--pending-bright) 0%,
+    var(--pending) 52%,
+    var(--pending-deep) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 230, 160, 0.4),
+    0 2px 8px rgba(122, 90, 0, 0.35);
+}
+
+.pending-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pending-deep);
+  background: color-mix(in srgb, var(--pending) 22%, white);
+}
+
+.dark .pending-badge {
+  color: #ffe8a0;
+  background: color-mix(in srgb, var(--pending) 28%, transparent);
+}
+
+.pending-badge-on-dark {
+  color: #fff8e0;
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .entry-type-event {
@@ -1274,6 +1347,52 @@ body {
   animation: loader-ring 12s linear infinite;
 }
 
+/* —— List stack + map pin entrance —— */
+@keyframes list-stack-in {
+  0% {
+    opacity: 0;
+    transform: translateY(28px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes map-pin-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.35);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(3px) scale(1.12);
+  }
+  75% {
+    transform: translateY(-2px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.list-stack-item {
+  opacity: 0;
+  animation: list-stack-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--stack-i, 0) * 70ms);
+}
+
+.map-pin-enter {
+  opacity: 0;
+  transform-origin: 50% 100%;
+  animation: map-pin-drop 0.42s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .koh-anim-idle,
   .koh-anim-wave,
@@ -1306,8 +1425,16 @@ body {
   .loader-bar > span,
   .loader-dots > span,
   .koh-loader-ring::before,
-  .koh-lost-spin {
+  .koh-lost-spin,
+  .list-stack-item,
+  .map-pin-enter {
     animation: none !important;
+  }
+
+  .list-stack-item,
+  .map-pin-enter {
+    opacity: 1;
+    transform: none;
   }
 
   .koh-anim-idle,

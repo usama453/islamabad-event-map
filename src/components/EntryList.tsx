@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import type { Entry } from "@/lib/types";
 import type { ViewFilter } from "@/lib/constants";
 import { EntryCard } from "./EntryCard";
@@ -8,6 +14,7 @@ import { KohMascot } from "./KohMascot";
 import { QuietLoader } from "./LoadingScreen";
 
 const EVENT_PREVIEW_COUNT = 3;
+const STACK_MAX_STAGGER = 14;
 
 interface EntryListProps {
   entries: Entry[];
@@ -15,6 +22,8 @@ interface EntryListProps {
   onSelect: (entry: Entry) => void;
   loading: boolean;
   viewFilter: ViewFilter;
+  /** Start stack-in after splash (page load) */
+  animateIn?: boolean;
 }
 
 function emptyLabel(viewFilter: ViewFilter): string {
@@ -64,14 +73,39 @@ export function EntryList({
   onSelect,
   loading,
   viewFilter,
+  animateIn = false,
 }: EntryListProps) {
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [eventsExpanded, setEventsExpanded] = useState(false);
+  /** pending → hidden until splash; animating → stack-in; done → normal */
+  const [stackPhase, setStackPhase] = useState<"pending" | "animating" | "done">(
+    "pending"
+  );
 
   // Reset collapse when leaving All view or when the listing set changes a lot
   useEffect(() => {
     setEventsExpanded(false);
   }, [viewFilter]);
+
+  // Play stack-in once after splash, when listings are ready
+  useEffect(() => {
+    if (!animateIn || loading || entries.length === 0 || stackPhase !== "pending")
+      return;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    if (reduceMotion) {
+      setStackPhase("done");
+      return;
+    }
+
+    setStackPhase("animating");
+    const n = Math.min(entries.length, STACK_MAX_STAGGER + 1);
+    const doneMs = 120 + n * 70 + 500;
+    const t = window.setTimeout(() => setStackPhase("done"), doneMs);
+    return () => window.clearTimeout(t);
+  }, [animateIn, loading, entries.length, stackPhase]);
 
   const { previewEntries, hiddenEventCount, toggleAfterIndex, canToggle } =
     useMemo(() => {
@@ -131,44 +165,62 @@ export function EntryList({
         {countLabel(entries.length, viewFilter)}
       </p>
       <div className="flex flex-col gap-1">
-        {previewEntries.map((entry, index) => (
-          <div key={entry.id}>
+        {previewEntries.map((entry, index) => {
+          const stagger = Math.min(index, STACK_MAX_STAGGER);
+          return (
             <div
-              ref={(node) => {
-                cardRefs.current[entry.id] = node;
-              }}
+              key={entry.id}
+              className={
+                stackPhase === "animating" ? "list-stack-item" : undefined
+              }
+              style={
+                stackPhase === "animating"
+                  ? ({ "--stack-i": stagger } as CSSProperties)
+                  : stackPhase === "pending"
+                    ? { opacity: 0 }
+                    : undefined
+              }
             >
-              <EntryCard
-                entry={entry}
-                isSelected={selectedId === entry.id}
-                onClick={() => onSelect(entry)}
-              />
-            </div>
-            {canToggle && index === toggleAfterIndex && (
-              <button
-                type="button"
-                onClick={() => setEventsExpanded((v) => !v)}
-                aria-expanded={eventsExpanded}
-                className="group/expand flex w-full items-center justify-center gap-1.5 px-2 py-2 text-sm font-semibold text-[var(--orange)] transition hover:text-[color-mix(in_srgb,var(--orange)_80%,black)]"
+              <div
+                ref={(node) => {
+                  cardRefs.current[entry.id] = node;
+                }}
               >
-                {eventsExpanded ? (
-                  <>
-                    Show fewer events
-                    <ChevronIcon className="h-4 w-4 transition group-hover/expand:-translate-y-0.5" up />
-                  </>
-                ) : (
-                  <>
-                    View all events
-                    <span className="tabular-nums opacity-70">
-                      (+{hiddenEventCount})
-                    </span>
-                    <ChevronIcon className="h-4 w-4 transition group-hover/expand:translate-y-0.5" />
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        ))}
+                <EntryCard
+                  entry={entry}
+                  isSelected={selectedId === entry.id}
+                  onClick={() => onSelect(entry)}
+                />
+              </div>
+              {canToggle && index === toggleAfterIndex && (
+                <button
+                  type="button"
+                  onClick={() => setEventsExpanded((v) => !v)}
+                  aria-expanded={eventsExpanded}
+                  className="group/expand flex w-full items-center justify-center gap-1.5 px-2 py-2 text-sm font-semibold text-[var(--orange)] transition hover:text-[color-mix(in_srgb,var(--orange)_80%,black)]"
+                >
+                  {eventsExpanded ? (
+                    <>
+                      Show fewer events
+                      <ChevronIcon
+                        className="h-4 w-4 transition group-hover/expand:-translate-y-0.5"
+                        up
+                      />
+                    </>
+                  ) : (
+                    <>
+                      View all events
+                      <span className="tabular-nums opacity-70">
+                        (+{hiddenEventCount})
+                      </span>
+                      <ChevronIcon className="h-4 w-4 transition group-hover/expand:translate-y-0.5" />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

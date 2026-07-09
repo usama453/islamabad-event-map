@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPendingEntry, fetchApprovedEntries } from "@/lib/airtable";
+import { createPendingEntry, fetchPublicEntries } from "@/lib/airtable";
 import { CATEGORIES } from "@/lib/constants";
 import type { CreateEntryInput } from "@/lib/types";
 
 export async function GET() {
   try {
-    const entries = await fetchApprovedEntries();
+    const entries = await fetchPublicEntries();
     return NextResponse.json({ entries });
   } catch (error) {
     console.error("Failed to fetch entries:", error);

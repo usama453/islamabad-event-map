@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KohMascot } from "./KohMascot";
 
 interface LoadingScreenProps {
@@ -22,9 +22,12 @@ export function LoadingScreen({
   const [visible, setVisible] = useState(true);
   const [exiting, setExiting] = useState(false);
   const [started] = useState(() => Date.now());
+  const finished = useRef(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || finished.current) return;
 
     const elapsed = Date.now() - started;
     const wait = Math.max(0, minDuration - elapsed);
@@ -33,8 +36,10 @@ export function LoadingScreen({
     const startTimer = window.setTimeout(() => {
       setExiting(true);
       exitTimer = window.setTimeout(() => {
+        if (finished.current) return;
+        finished.current = true;
         setVisible(false);
-        onDone?.();
+        onDoneRef.current?.();
       }, 420);
     }, wait);
 
@@ -42,7 +47,19 @@ export function LoadingScreen({
       window.clearTimeout(startTimer);
       if (exitTimer) window.clearTimeout(exitTimer);
     };
-  }, [ready, minDuration, started, onDone]);
+  }, [ready, minDuration, started]);
+
+  // Safety: never leave the splash up forever if something stalls
+  useEffect(() => {
+    const failsafe = window.setTimeout(() => {
+      if (finished.current) return;
+      finished.current = true;
+      setExiting(true);
+      setVisible(false);
+      onDoneRef.current?.();
+    }, 8000);
+    return () => window.clearTimeout(failsafe);
+  }, []);
 
   if (!visible) return null;
 
@@ -101,14 +118,17 @@ export function QuietLoader({
 interface AppSplashProps {
   children: React.ReactNode;
   ready: boolean;
+  onIntroDone?: () => void;
 }
 
 /**
  * Opaque full-screen splash. Children mount underneath (data/map load)
  * but only this one Koh is visible until ready.
  */
-export function AppSplash({ children, ready }: AppSplashProps) {
+export function AppSplash({ children, ready, onIntroDone }: AppSplashProps) {
   const [showSplash, setShowSplash] = useState(true);
+  const onIntroDoneRef = useRef(onIntroDone);
+  onIntroDoneRef.current = onIntroDone;
 
   return (
     <>
@@ -116,7 +136,10 @@ export function AppSplash({ children, ready }: AppSplashProps) {
       {showSplash && (
         <LoadingScreen
           ready={ready}
-          onDone={() => setShowSplash(false)}
+          onDone={() => {
+            setShowSplash(false);
+            onIntroDoneRef.current?.();
+          }}
           label="Finding spots in Islamabad…"
         />
       )}

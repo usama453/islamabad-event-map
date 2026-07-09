@@ -36,6 +36,7 @@ export function HomePage() {
   const [showSubmit, setShowSubmit] = useState(false);
   const [pinMode, setPinMode] = useState(false);
   const [exitPinModeSignal, setExitPinModeSignal] = useState(0);
+  const [introReady, setIntroReady] = useState(false);
   const [draftPin, setDraftPin] = useState<{ lat: number; lng: number } | null>(
     null
   );
@@ -157,7 +158,7 @@ export function HomePage() {
   }, []);
 
   return (
-    <AppSplash ready={!loading}>
+    <AppSplash ready={!loading} onIntroDone={() => setIntroReady(true)}>
       <Header />
       <div className="flex h-[calc(100vh-72px)] flex-col lg:flex-row">
       {/* Left: filters + list */}
@@ -185,7 +186,7 @@ export function HomePage() {
                   Suggest an event or place
                 </h2>
                 <p className="mt-0.5 text-sm text-ink-muted">
-                  Reviewed before it appears on the map.
+                  Shows as pending until an admin verifies it.
                 </p>
               </div>
               <button
@@ -240,6 +241,7 @@ export function HomePage() {
                   onSelect={handleListSelect}
                   loading={loading}
                   viewFilter={viewFilter}
+                  animateIn={introReady}
                 />
               )}
             </div>
@@ -273,6 +275,7 @@ export function HomePage() {
             }}
             onSuggest={!showSubmit ? openSuggest : undefined}
             onSuggestAt={!showSubmit ? openSuggestAt : undefined}
+            animatePins={introReady}
           />
         </div>
       </aside>
