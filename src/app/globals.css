@@ -1794,7 +1794,7 @@ body.koh-crt .brand-tagline {
 body.koh-crt header {
   border-bottom: 3px solid var(--crt-border) !important;
   background: linear-gradient(180deg, #4a8a45 0%, #2d6b35 55%, #1f4a28 100%) !important;
-  box-shadow: 0 3px 0 var(--crt-shadow);
+  box-shadow: none;
 }
 
 html.dark body.koh-crt header {
@@ -1818,20 +1818,18 @@ body.koh-crt .btn-primary {
   font-weight: 400;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  box-shadow: 3px 3px 0 var(--crt-shadow) !important;
+  box-shadow: none !important;
 }
 
 body.koh-crt .btn-primary:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 var(--crt-shadow) !important;
+  filter: brightness(1.05);
 }
 
 body.koh-crt .btn-primary:active,
 body.koh-crt .btn-primary-selected,
 body.koh-crt .btn-primary[aria-selected="true"],
 body.koh-crt .btn-primary[aria-expanded="true"] {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 var(--crt-shadow) !important;
+  filter: brightness(0.98);
 }
 
 body.koh-crt .btn-secondary,
@@ -1844,7 +1842,7 @@ body.koh-crt .btn-secondary-active {
   font-size: 9px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  box-shadow: 2px 2px 0 var(--crt-shadow);
+  box-shadow: none;
 }
 
 body.koh-crt .btn-secondary-active {
@@ -1865,7 +1863,7 @@ body.koh-crt .seg-tab-active {
 body.koh-crt .seg-tab-active {
   background: #0051ff !important;
   color: #fff !important;
-  box-shadow: 2px 2px 0 var(--crt-shadow);
+  box-shadow: none;
 }
 
 body.koh-crt .chip-selected,
@@ -1877,7 +1875,7 @@ body.koh-crt [class*="rounded-full"].chip-selected {
   font-family: var(--font-pixel), monospace;
   font-size: 9px;
   text-transform: uppercase;
-  box-shadow: 2px 2px 0 var(--crt-shadow);
+  box-shadow: none;
 }
 
 body.koh-crt .filters-panel,
@@ -1895,7 +1893,7 @@ body.koh-crt .entry-card-pending > div {
 body.koh-crt .seg-track {
   border: 2px solid var(--crt-gold) !important;
   background: var(--crt-panel-deep) !important;
-  box-shadow: 2px 2px 0 var(--crt-shadow);
+  box-shadow: none;
   padding: 2px !important;
 }
 
@@ -1903,9 +1901,7 @@ body.koh-crt .filters-chrome {
   border: 3px solid var(--crt-border) !important;
   border-radius: 0 !important;
   background: var(--crt-panel) !important;
-  box-shadow:
-    0 0 0 2px var(--crt-gold),
-    3px 3px 0 var(--crt-shadow) !important;
+  box-shadow: 0 0 0 2px var(--crt-gold) !important;
   backdrop-filter: none !important;
 }
 
@@ -1920,9 +1916,7 @@ body.koh-crt .filters-panel {
       transparent 3px
     ),
     linear-gradient(180deg, var(--crt-panel) 0%, var(--crt-panel-deep) 100%) !important;
-  box-shadow:
-    0 0 0 2px var(--crt-gold),
-    3px 3px 0 var(--crt-shadow) !important;
+  box-shadow: 0 0 0 2px var(--crt-gold) !important;
 }
 
 body.koh-crt .filters-panel p {
@@ -1938,7 +1932,7 @@ body.koh-crt .entry-card-pending {
   border: 2px solid var(--crt-gold) !important;
   border-radius: 0 !important;
   background: var(--crt-panel) !important;
-  box-shadow: 2px 2px 0 var(--crt-shadow);
+  box-shadow: none;
 }
 
 body.koh-crt .entry-card-event:hover,
@@ -1953,7 +1947,7 @@ body.koh-crt .entry-card-pending-selected,
 body.koh-crt button.btn-primary.btn-primary-selected {
   border: 3px solid #f4e8c8 !important;
   border-radius: 0 !important;
-  box-shadow: 3px 3px 0 var(--crt-shadow) !important;
+  box-shadow: none !important;
 }
 
 /* Left sidebar: readable bold sans all-caps (not pixel) */
@@ -2026,7 +2020,7 @@ body.koh-crt .sidebar-pane select {
 body.koh-crt .viewer-crowd {
   border: 2px solid var(--crt-gold) !important;
   background: var(--crt-panel) !important;
-  box-shadow: 2px 2px 0 var(--crt-shadow);
+  box-shadow: none;
   font-family: var(--font-pixel), monospace;
 }
 
@@ -2043,9 +2037,7 @@ body.koh-crt .mapboxgl-popup-content {
   border-radius: 0 !important;
   background: var(--crt-panel) !important;
   color: var(--crt-ink) !important;
-  box-shadow:
-    0 0 0 2px var(--crt-gold),
-    3px 3px 0 var(--crt-shadow) !important;
+  box-shadow: 0 0 0 2px var(--crt-gold) !important;
   font-family: var(--font-pixel), monospace;
 }
 
@@ -2053,7 +2045,7 @@ body.koh-crt .mapboxgl-ctrl-group {
   border: 2px solid var(--crt-gold) !important;
   border-radius: 0 !important;
   background: var(--crt-panel) !important;
-  box-shadow: 2px 2px 0 var(--crt-shadow);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -2101,6 +2093,6 @@ body.koh-crt .loader-dots span {
 body.koh-crt .koh-loader-ring {
   border-radius: 0 !important;
   border-color: var(--crt-gold) !important;
-  box-shadow: 3px 3px 0 var(--crt-shadow);
+  box-shadow: none;
 }
 
