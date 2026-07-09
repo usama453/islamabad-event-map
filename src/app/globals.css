@@ -1433,6 +1433,36 @@ body {
   }
 }
 
+.welcome-overlay {
+  background: color-mix(in srgb, var(--ink) 42%, transparent);
+  backdrop-filter: blur(4px);
+  animation: welcome-fade-in 0.28s ease-out;
+}
+
+.welcome-panel {
+  animation: welcome-panel-in 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes welcome-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes welcome-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .koh-about-overlay {
   background:
     radial-gradient(
@@ -1634,6 +1664,11 @@ body {
 
   .koh-about-cursor {
     opacity: 1;
+  }
+
+  .welcome-overlay,
+  .welcome-panel {
+    animation: none;
   }
 
   .koh-anim-idle,

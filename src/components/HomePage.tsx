@@ -7,6 +7,11 @@ import { EntryList } from "@/components/EntryList";
 import { Header } from "@/components/Header";
 import { SubmitForm } from "@/components/SubmitForm";
 import { AppSplash, QuietLoader } from "@/components/LoadingScreen";
+import {
+  hasSeenWelcome,
+  markWelcomeSeen,
+  WelcomeModal,
+} from "@/components/WelcomeModal";
 import type { Category, DateFilter, ViewFilter } from "@/lib/constants";
 import { CATEGORIES } from "@/lib/constants";
 import type { Entry } from "@/lib/types";
@@ -37,6 +42,7 @@ export function HomePage() {
   const [pinMode, setPinMode] = useState(false);
   const [exitPinModeSignal, setExitPinModeSignal] = useState(0);
   const [introReady, setIntroReady] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [draftPin, setDraftPin] = useState<{ lat: number; lng: number } | null>(
     null
@@ -163,6 +169,19 @@ export function HomePage() {
 
   const handleIntroDone = useCallback(() => setIntroReady(true), []);
 
+  const closeWelcome = useCallback(() => {
+    markWelcomeSeen();
+    setShowWelcome(false);
+  }, []);
+
+  // After splash + map are ready, invite first-time visitors once
+  useEffect(() => {
+    if (!introReady || loading) return;
+    if (hasSeenWelcome()) return;
+    const t = window.setTimeout(() => setShowWelcome(true), 600);
+    return () => window.clearTimeout(t);
+  }, [introReady, loading]);
+
   // Never leave the splash waiting forever if the fetch hangs
   useEffect(() => {
     if (!loading) return;
@@ -172,6 +191,11 @@ export function HomePage() {
 
   return (
     <AppSplash ready={!loading} onIntroDone={handleIntroDone}>
+      <WelcomeModal
+        open={showWelcome}
+        onClose={closeWelcome}
+        onAddSpot={openSuggest}
+      />
       <div className="flex h-dvh flex-col lg:flex-row">
       {/* Left: brand + list — collapses on mobile when map is expanded */}
       <section
