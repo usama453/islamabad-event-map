@@ -19,49 +19,47 @@ export function LoadingScreen({
   label = "Finding spots in Islamabad…",
   onDone,
 }: LoadingScreenProps) {
-  const [visible, setVisible] = useState(true);
   const [exiting, setExiting] = useState(false);
-  const [started] = useState(() => Date.now());
-  const finished = useRef(false);
+  const [gone, setGone] = useState(false);
+  const startedAt = useRef(Date.now());
   const onDoneRef = useRef(onDone);
+  const finished = useRef(false);
+  const armed = useRef(false);
   onDoneRef.current = onDone;
 
   useEffect(() => {
-    if (!ready || finished.current) return;
+    if (!ready || armed.current || finished.current) return;
+    armed.current = true;
 
-    const elapsed = Date.now() - started;
-    const wait = Math.max(0, minDuration - elapsed);
-    let exitTimer: number | undefined;
+    const wait = Math.max(0, minDuration - (Date.now() - startedAt.current));
 
-    const startTimer = window.setTimeout(() => {
+    // Intentionally no cleanup — Strict Mode was cancelling the exit timer
+    // and leaving the splash stuck until a failsafe fired.
+    window.setTimeout(() => {
+      if (finished.current) return;
       setExiting(true);
-      exitTimer = window.setTimeout(() => {
+      window.setTimeout(() => {
         if (finished.current) return;
         finished.current = true;
-        setVisible(false);
+        setGone(true);
         onDoneRef.current?.();
-      }, 420);
+      }, 400);
     }, wait);
+  }, [ready, minDuration]);
 
-    return () => {
-      window.clearTimeout(startTimer);
-      if (exitTimer) window.clearTimeout(exitTimer);
-    };
-  }, [ready, minDuration, started]);
-
-  // Safety: never leave the splash up forever if something stalls
+  // Absolute failsafe
   useEffect(() => {
-    const failsafe = window.setTimeout(() => {
+    const t = window.setTimeout(() => {
       if (finished.current) return;
       finished.current = true;
       setExiting(true);
-      setVisible(false);
+      setGone(true);
       onDoneRef.current?.();
-    }, 8000);
-    return () => window.clearTimeout(failsafe);
+    }, 4000);
+    return () => window.clearTimeout(t);
   }, []);
 
-  if (!visible) return null;
+  if (gone) return null;
 
   return (
     <div
@@ -128,7 +126,22 @@ interface AppSplashProps {
 export function AppSplash({ children, ready, onIntroDone }: AppSplashProps) {
   const [showSplash, setShowSplash] = useState(true);
   const onIntroDoneRef = useRef(onIntroDone);
+  const dismissed = useRef(false);
   onIntroDoneRef.current = onIntroDone;
+
+  const dismiss = () => {
+    if (dismissed.current) return;
+    dismissed.current = true;
+    setShowSplash(false);
+    onIntroDoneRef.current?.();
+  };
+
+  useEffect(() => {
+    if (!showSplash) return;
+    const t = window.setTimeout(dismiss, 5000);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSplash]);
 
   return (
     <>
@@ -136,10 +149,7 @@ export function AppSplash({ children, ready, onIntroDone }: AppSplashProps) {
       {showSplash && (
         <LoadingScreen
           ready={ready}
-          onDone={() => {
-            setShowSplash(false);
-            onIntroDoneRef.current?.();
-          }}
+          onDone={dismiss}
           label="Finding spots in Islamabad…"
         />
       )}

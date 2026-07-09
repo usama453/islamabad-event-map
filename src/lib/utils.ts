@@ -219,7 +219,7 @@ export function formatEventDate(entry: Entry): string | null {
   return start.toLocaleDateString("en-PK", options);
 }
 
-/** Optional `Time: …` / `Contact: …` lines in description (Airtable schema workarounds) */
+/** Optional `Time: …` / `Contact: …` / `Organizer: …` lines in description */
 function extractMetaLine(description: string | undefined, key: string): string | null {
   if (!description) return null;
   const match = description.match(new RegExp(`^${key}:\\s*(.+)$`, "im"));
@@ -235,12 +235,18 @@ export function entryContactPhone(entry: Entry): string | undefined {
   return extractMetaLine(entry.description, "Contact") ?? undefined;
 }
 
-/** Description without metadata lines (Time / Contact) */
+export function entryOrganizerName(entry: Entry): string {
+  if (entry.organizerName?.trim()) return entry.organizerName.trim();
+  return extractMetaLine(entry.description, "Organizer") ?? "@usamabelike";
+}
+
+/** Description without metadata lines (Time / Contact / Organizer) */
 export function entryBodyText(entry: Entry): string | undefined {
   if (!entry.description) return undefined;
   const cleaned = entry.description
     .replace(/^Time:\s*.+$/im, "")
     .replace(/^Contact:\s*.+$/im, "")
+    .replace(/^Organizer:\s*.+$/im, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return cleaned || undefined;

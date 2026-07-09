@@ -28,7 +28,7 @@ interface EntryListProps {
 
 function emptyLabel(viewFilter: ViewFilter): string {
   if (viewFilter === "event") return "events";
-  if (viewFilter === "place") return "places";
+  if (viewFilter === "place") return "spots";
   return "listings";
 }
 
@@ -37,7 +37,7 @@ function countLabel(count: number, viewFilter: ViewFilter): string {
     return `${count} event${count !== 1 ? "s" : ""}`;
   }
   if (viewFilter === "place") {
-    return `${count} place${count !== 1 ? "s" : ""}`;
+    return `${count} spot${count !== 1 ? "s" : ""}`;
   }
   return `${count} listing${count !== 1 ? "s" : ""}`;
 }

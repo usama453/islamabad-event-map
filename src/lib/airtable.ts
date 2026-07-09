@@ -39,6 +39,12 @@ function mapRecord(record: Airtable.Record<FieldSet>): Entry {
     ? String(fields.Description)
     : undefined;
   const contactFromDesc = description?.match(/^Contact:\s*(.+)$/im)?.[1]?.trim();
+  const organizerFromDesc = description
+    ?.match(/^Organizer:\s*(.+)$/im)?.[1]
+    ?.trim();
+  const organizerFromField = fields.Organizer
+    ? String(fields.Organizer).trim()
+    : "";
 
   return {
     id: record.id,
@@ -46,6 +52,7 @@ function mapRecord(record: Airtable.Record<FieldSet>): Entry {
     title: String(fields.Title ?? ""),
     description,
     category: parseCategory(fields.Category),
+    organizerName: organizerFromField || organizerFromDesc || "",
     lat: typeof fields.Lat === "number" ? fields.Lat : undefined,
     lng: typeof fields.Lng === "number" ? fields.Lng : undefined,
     locationText: fields.LocationText
@@ -86,16 +93,15 @@ export async function createPendingEntry(
     Status: "pending",
   };
 
-  // No ContactPhone column in Airtable yet — store as Description metadata
-  let description = input.description;
+  // Organizer / Contact stored as Description metadata (no extra columns required).
+  // Optional Airtable `Organizer` field is also read when present.
+  const metaLines: string[] = [`Organizer: ${input.organizerName.trim()}`];
   if (input.contactPhone?.trim()) {
-    const phone = input.contactPhone.trim();
-    description = description
-      ? `Contact: ${phone}\n\n${description}`
-      : `Contact: ${phone}`;
+    metaLines.push(`Contact: ${input.contactPhone.trim()}`);
   }
-
-  if (description) fields.Description = description;
+  fields.Description = input.description?.trim()
+    ? `${metaLines.join("\n")}\n\n${input.description.trim()}`
+    : metaLines.join("\n");
   if (input.lat != null) fields.Lat = input.lat;
   if (input.lng != null) fields.Lng = input.lng;
   if (input.locationText) fields.LocationText = input.locationText;
@@ -105,4 +111,47 @@ export async function createPendingEntry(
 
   const [record] = await getBase()(TABLE_NAME).create([{ fields }]);
   return mapRecord(record);
+}
+
+const SUBSCRIBERS_TABLE = "Subscribers";
+
+export async function subscribeEmail(
+  email: string
+): Promise<{ alreadySubscribed: boolean }> {
+  const base = getBase();
+  const normalized = email.trim().toLowerCase();
+  const escaped = normalized.replace(/'/g, "\\'");
+
+  const existing = await base(SUBSCRIBERS_TABLE)
+    .select({
+      filterByFormula: `LOWER({Email}) = '${escaped}'`,
+      maxRecords: 1,
+    })
+    .firstPage();
+
+  if (existing.length > 0) {
+    return { alreadySubscribed: true };
+  }
+
+  try {
+    await base(SUBSCRIBERS_TABLE).create([
+      {
+        fields: {
+          Email: normalized,
+          Status: "active",
+        },
+      },
+    ]);
+  } catch {
+    // Status column is optional — retry with Email only
+    await base(SUBSCRIBERS_TABLE).create([
+      {
+        fields: {
+          Email: normalized,
+        },
+      },
+    ]);
+  }
+
+  return { alreadySubscribed: false };
 }

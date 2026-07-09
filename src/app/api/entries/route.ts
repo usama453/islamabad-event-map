@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       ? String(body.description).trim()
       : undefined;
     const category = String(body.category ?? "");
+    const organizerName = String(body.organizerName ?? "").trim();
     const lat = body.lat != null ? Number(body.lat) : undefined;
     const lng = body.lng != null ? Number(body.lng) : undefined;
     const locationTbd = Boolean(body.locationTbd);
@@ -59,6 +60,20 @@ export async function POST(request: NextRequest) {
 
     if (!title) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    }
+
+    if (!organizerName) {
+      return NextResponse.json(
+        { error: "Your name is required" },
+        { status: 400 }
+      );
+    }
+
+    if (organizerName.length > 80) {
+      return NextResponse.json(
+        { error: "Name is too long" },
+        { status: 400 }
+      );
     }
 
     if (!CATEGORIES.includes(category as (typeof CATEGORIES)[number])) {
@@ -126,6 +141,7 @@ export async function POST(request: NextRequest) {
       title,
       description,
       category: category as CreateEntryInput["category"],
+      organizerName,
       lat: hasCoords && !locationTbd ? lat : undefined,
       lng: hasCoords && !locationTbd ? lng : undefined,
       // Keep address text even when a pin is set

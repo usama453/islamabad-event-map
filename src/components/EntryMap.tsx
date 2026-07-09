@@ -12,6 +12,7 @@ import {
   DEFAULT_ZOOM,
 } from "@/lib/constants";
 import {
+  entryOrganizerName,
   formatEventSchedule,
   happeningSoonLabel,
   hasCoordinates,
@@ -99,11 +100,9 @@ function PinTooltip({ entry }: { entry: Entry }) {
   const isEvent = entry.type === "event";
   const isPending = entry.status === "pending";
   const schedule = formatEventSchedule(entry);
-  const location =
-    entry.locationText?.trim() ||
-    (hasCoordinates(entry) ? "Islamabad" : "Location TBD");
-  const meta = isEvent ? schedule ?? "Date TBA" : "Open regularly";
+  const location = entry.locationText?.trim() || null;
   const soonLabel = isEvent ? happeningSoonLabel(entry) : null;
+  const organizer = entryOrganizerName(entry);
 
   return (
     <div className="pin-tooltip pointer-events-none w-[200px] rounded-xl border border-line bg-surface px-3 py-2.5 shadow-lg">
@@ -148,18 +147,23 @@ function PinTooltip({ entry }: { entry: Entry }) {
       <p className="mt-1 text-[13px] font-semibold leading-snug text-ink">
         {truncate(entry.title, 48)}
       </p>
-      <p
-        className={`mt-1 truncate text-[11px] font-medium ${
-          isPending
-            ? "text-[var(--pending-deep)]"
-            : isEvent
-              ? "entry-meta-event"
-              : "entry-meta-place"
-        }`}
-      >
-        {meta}
+      <p className="mt-0.5 truncate text-[11px] text-ink-muted">
+        by {organizer}
       </p>
-      <p className="mt-0.5 truncate text-[11px] text-ink-muted">{location}</p>
+      {isEvent && (
+        <p
+          className={`mt-1 truncate text-[11px] font-medium ${
+            isPending ? "text-[var(--pending-deep)]" : "entry-meta-event"
+          }`}
+        >
+          {schedule ?? "Date TBA"}
+        </p>
+      )}
+      {location &&
+        !location.toLowerCase().includes("not finalised") &&
+        location.toLowerCase() !== "islamabad" && (
+          <p className="mt-0.5 truncate text-[11px] text-ink-muted">{location}</p>
+        )}
     </div>
   );
 }
@@ -252,18 +256,19 @@ export function EntryMap({
   const [enteringPinIds, setEnteringPinIds] = useState<Set<string>>(
     () => new Set()
   );
-  const pinRevealDone = useRef(false);
+  const revealGen = useRef(0);
 
   const mappableEntries = entries.filter(hasCoordinates);
   const mappableIdsKey = mappableEntries.map((e) => e.id).join("|");
 
-  // Reveal pins one-by-one after splash + map ready
+  // Drop every pin in one-by-one whenever the visible set changes
+  // (page load, All / Events / Places, category filters, etc.)
   useEffect(() => {
-    if (!mapReady || !animatePins || pinMode || mappableEntries.length === 0)
-      return;
-    if (pinRevealDone.current) {
-      // After intro, show any newly added pins immediately
-      setVisiblePinCount(mappableEntries.length);
+    if (!mapReady || !animatePins || pinMode) return;
+
+    if (mappableEntries.length === 0) {
+      setVisiblePinCount(0);
+      setEnteringPinIds(new Set());
       return;
     }
 
@@ -273,48 +278,52 @@ export function EntryMap({
 
     if (reduceMotion) {
       setVisiblePinCount(mappableEntries.length);
-      pinRevealDone.current = true;
+      setEnteringPinIds(new Set());
       return;
     }
 
     const pins = mappableEntries;
+    const gen = ++revealGen.current;
     setVisiblePinCount(0);
+    setEnteringPinIds(new Set());
+
     let i = 0;
     const stepMs = Math.max(
-      55,
-      Math.min(120, 2200 / Math.max(pins.length, 1))
+      40,
+      Math.min(90, 1600 / Math.max(pins.length, 1))
     );
     const clearEnterTimers: number[] = [];
+    let timer = 0;
 
     const tick = () => {
+      if (gen !== revealGen.current) return;
       i += 1;
       const next = pins[i - 1];
       if (next) {
         setEnteringPinIds((prev) => new Set(prev).add(next.id));
         clearEnterTimers.push(
           window.setTimeout(() => {
+            if (gen !== revealGen.current) return;
             setEnteringPinIds((prev) => {
               const copy = new Set(prev);
               copy.delete(next.id);
               return copy;
             });
-          }, 450)
+          }, 420)
         );
       }
       setVisiblePinCount(i);
-      if (i >= pins.length) {
-        pinRevealDone.current = true;
-        return;
-      }
+      if (i >= pins.length) return;
       timer = window.setTimeout(tick, stepMs);
     };
 
-    let timer = window.setTimeout(tick, 120);
+    timer = window.setTimeout(tick, 60);
     return () => {
+      revealGen.current += 1; // invalidate in-flight reveal
       window.clearTimeout(timer);
       clearEnterTimers.forEach((id) => window.clearTimeout(id));
     };
-    // mappableIdsKey tracks identity; length covered by that key
+    // mappableIdsKey tracks the full pin set identity
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, animatePins, pinMode, mappableIdsKey]);
 
@@ -597,22 +606,22 @@ export function EntryMap({
       </Map>
 
       {!pinMode && (
-        <ViewerTicker className="absolute left-3 top-3 z-20" />
+        <ViewerTicker className="absolute left-3 top-[4.25rem] z-20 sm:top-3" />
       )}
 
       {!pinMode && onSuggest && (
         <button
           type="button"
           onClick={onSuggest}
-          className="btn-primary absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg sm:left-auto sm:right-14 sm:translate-x-0"
+          className="btn-primary absolute bottom-[7.5rem] right-3 z-20 rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg sm:bottom-auto sm:right-14 sm:top-3"
         >
-          <span className="sm:hidden">Suggest</span>
-          <span className="hidden sm:inline">Suggest an event/place</span>
+          <span className="sm:hidden">Add</span>
+          <span className="hidden sm:inline">Add an Event/Spot</span>
         </button>
       )}
 
       {pinMode && (
-        <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--orange)_45%,white)] bg-[var(--orange)] pl-4 pr-1.5 py-1.5 text-sm font-semibold text-white shadow-md">
+        <div className="absolute left-1/2 top-[4.25rem] z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--orange)_45%,white)] bg-[var(--orange)] pl-4 pr-1.5 py-1.5 text-sm font-semibold text-white shadow-md sm:top-3">
           <span className="pointer-events-none whitespace-nowrap">
             Click the map to drop your pin
             {draftPin && (
@@ -634,7 +643,7 @@ export function EntryMap({
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-4 right-3 z-10 flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm dark:bg-surface-raised/90">
+      <div className="pointer-events-none absolute bottom-[4.75rem] right-3 z-10 flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm dark:bg-surface-raised/90 sm:bottom-16">
         <span className="inline-flex items-center gap-1.5">
           <span className="pin-event inline-flex h-5 w-5 items-center justify-center rounded-full border-0 text-white">
             <EventPinIcon className="h-3 w-3" />
@@ -648,7 +657,7 @@ export function EntryMap({
           >
             <PlacePinIcon className="h-3 w-3" />
           </span>
-          Places
+          Spots
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="pin-pending inline-flex h-5 w-5 items-center justify-center rounded-full border-0 text-white ring-1 ring-dashed ring-white/70">

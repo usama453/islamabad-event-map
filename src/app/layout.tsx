@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Fraunces } from "next/font/google";
+import { DM_Sans, Fraunces, Press_Start_2P } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
@@ -11,6 +11,12 @@ const sans = DM_Sans({
 const display = Fraunces({
   subsets: ["latin"],
   variable: "--font-display",
+});
+
+const pixel = Press_Start_2P({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-pixel",
 });
 
 export const metadata: Metadata = {
@@ -40,7 +46,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body
-        className={`${sans.variable} ${display.variable} bg-[var(--surface)] font-sans text-[var(--ink)] antialiased`}
+        className={`${sans.variable} ${display.variable} ${pixel.variable} bg-[var(--surface)] font-sans text-[var(--ink)] antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
       </body>

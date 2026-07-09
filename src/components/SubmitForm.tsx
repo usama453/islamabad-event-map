@@ -45,6 +45,7 @@ export function SubmitForm({
 }: SubmitFormProps) {
   const [type, setType] = useState<EntryType>(defaultType);
   const [title, setTitle] = useState("");
+  const [organizerName, setOrganizerName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<Category | "">("");
   const [locationMode, setLocationMode] = useState<LocationMode>("map");
@@ -111,6 +112,7 @@ export function SubmitForm({
   const resetForm = () => {
     setSuccess(false);
     setTitle("");
+    setOrganizerName("");
     setDescription("");
     setCategory("");
     setCoords(undefined, undefined);
@@ -128,6 +130,10 @@ export function SubmitForm({
 
     if (!title.trim()) {
       setError("Title is required");
+      return;
+    }
+    if (!organizerName.trim()) {
+      setError("Your name is required");
       return;
     }
     if (!category) {
@@ -168,6 +174,7 @@ export function SubmitForm({
         body: JSON.stringify({
           type,
           title: title.trim(),
+          organizerName: organizerName.trim(),
           description: description.trim() || undefined,
           category,
           lat: locationMode === "map" ? lat : undefined,
@@ -277,6 +284,26 @@ export function SubmitForm({
           className={fieldClass}
           placeholder="e.g. Jazz Night at PNCA"
         />
+      </div>
+
+      <div>
+        <label htmlFor="organizerName" className={labelClass}>
+          Your name *
+        </label>
+        <input
+          id="organizerName"
+          type="text"
+          required
+          value={organizerName}
+          onChange={(e) => setOrganizerName(e.target.value)}
+          className={fieldClass}
+          placeholder="e.g. Usama"
+          autoComplete="name"
+          maxLength={80}
+        />
+        <p className="mt-1 text-[11px] text-ink-muted">
+          Shown as “by …” on the listing.
+        </p>
       </div>
 
       <div>

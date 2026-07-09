@@ -1393,6 +1393,193 @@ body {
   animation: map-pin-drop 0.42s cubic-bezier(0.22, 1.2, 0.36, 1) both;
 }
 
+/* —— Filters panel open/close —— */
+.filters-panel {
+  transform-origin: top center;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.filters-panel-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* —— Koh about modal (retro CRT window) —— */
+@keyframes koh-about-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes koh-about-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.koh-about-overlay {
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(20, 40, 28, 0.35) 0%,
+      rgba(0, 0, 0, 0.72) 70%
+    ),
+    rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.koh-about-window {
+  border: 3px solid #2a1f14;
+  box-shadow:
+    0 0 0 2px #7a5a28,
+    0 0 0 5px #2a1f14,
+    0 18px 40px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 220, 140, 0.15);
+  animation: koh-about-in 0.22s ease-out;
+  image-rendering: pixelated;
+}
+
+.koh-about-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  background: linear-gradient(180deg, #3d6b3a 0%, #1f4a28 55%, #16351c 100%);
+  border-bottom: 3px solid #2a1f14;
+}
+
+.koh-about-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.koh-about-dots i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #1a1208;
+  background: #c9960a;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 200, 0.45);
+}
+
+.koh-about-dots i:nth-child(2) {
+  background: #2d8a4e;
+}
+
+.koh-about-dots i:nth-child(3) {
+  background: #d94a00;
+}
+
+.koh-about-x {
+  display: inline-flex;
+  height: 22px;
+  min-width: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #f4e8c8;
+  background: #a83600;
+  color: #fff4d6;
+  font-size: 9px;
+  line-height: 1;
+  box-shadow: 2px 2px 0 #1a1208;
+  transition: transform 0.08s ease;
+}
+
+.koh-about-x:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #1a1208;
+}
+
+.koh-about-body {
+  position: relative;
+  overflow: hidden;
+  padding: 1rem 1rem 1.1rem;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.08) 0px,
+      rgba(0, 0, 0, 0.08) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    linear-gradient(180deg, #1a2418 0%, #121a12 48%, #0e140f 100%);
+  color: #f0e6c8;
+}
+
+.koh-about-scanlines {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    rgba(0, 0, 0, 0.12) 2px,
+    rgba(0, 0, 0, 0.12) 3px
+  );
+  opacity: 0.55;
+}
+
+.koh-about-sprite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #7a5a28;
+  background: #243022;
+  padding: 0.35rem;
+  box-shadow:
+    inset 0 0 0 2px #1a1208,
+    3px 3px 0 #0a0e0a;
+}
+
+.koh-about-copy p {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.65);
+}
+
+.koh-about-cursor {
+  display: inline-block;
+  margin-left: 2px;
+  animation: koh-about-blink 1s step-end infinite;
+}
+
+.koh-about-btn {
+  border: 3px solid #f4e8c8;
+  background: linear-gradient(180deg, #3d7aff 0%, #0051ff 55%, #0033b0 100%);
+  color: #fff;
+  padding: 0.7rem 1rem;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  box-shadow: 3px 3px 0 #1a1208;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.koh-about-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 #1a1208;
+}
+
+.koh-about-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #1a1208;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .koh-anim-idle,
   .koh-anim-wave,
@@ -1427,14 +1614,26 @@ body {
   .koh-loader-ring::before,
   .koh-lost-spin,
   .list-stack-item,
-  .map-pin-enter {
+  .map-pin-enter,
+  .koh-about-window,
+  .koh-about-cursor {
     animation: none !important;
   }
 
+  .filters-panel {
+    transition: none !important;
+  }
+
   .list-stack-item,
-  .map-pin-enter {
+  .map-pin-enter,
+  .koh-about-window,
+  .filters-panel-open {
     opacity: 1;
     transform: none;
+  }
+
+  .koh-about-cursor {
+    opacity: 1;
   }
 
   .koh-anim-idle,

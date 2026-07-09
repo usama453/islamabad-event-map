@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { Category, DateFilter, ViewFilter } from "@/lib/constants";
 import { CATEGORY_LABELS, DATE_FILTER_LABELS } from "@/lib/constants";
 
+type PanelPhase = "closed" | "open" | "closing";
+
 interface FiltersBarProps {
   viewFilter: ViewFilter;
   onViewFilterChange: (filter: ViewFilter) => void;
@@ -15,6 +17,8 @@ interface FiltersBarProps {
   allCount?: number;
   eventCount?: number;
   placeCount?: number;
+  /** Float over the map instead of sitting in the sidebar */
+  floating?: boolean;
 }
 
 export function FiltersBar({
@@ -28,11 +32,32 @@ export function FiltersBar({
   allCount = 0,
   eventCount = 0,
   placeCount = 0,
+  floating = false,
 }: FiltersBarProps) {
-  const [open, setOpen] = useState(false);
+  const [panelPhase, setPanelPhase] = useState<PanelPhase>("closed");
+  const [panelVisible, setPanelVisible] = useState(false);
   const panelId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const open = panelPhase === "open";
+
+  const openPanel = () => {
+    setPanelPhase("open");
+    // Next frame so CSS can transition from closed → open
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setPanelVisible(true));
+    });
+  };
+
+  const closePanel = () => {
+    setPanelVisible(false);
+    setPanelPhase("closing");
+  };
+
+  const togglePanel = () => {
+    if (panelPhase === "open") closePanel();
+    else if (panelPhase === "closed") openPanel();
+  };
 
   const toggleCategory = (category: Category) => {
     if (selectedCategories.includes(category)) {
@@ -45,7 +70,7 @@ export function FiltersBar({
   const segments: { id: ViewFilter; label: string; count: number }[] = [
     { id: "all", label: "All", count: allCount },
     { id: "event", label: "Events", count: eventCount },
-    { id: "place", label: "Places", count: placeCount },
+    { id: "place", label: "Spots", count: placeCount },
   ];
 
   const showDate = viewFilter === "event" || viewFilter === "all";
@@ -54,10 +79,10 @@ export function FiltersBar({
   const hasFilters = activeFilterCount > 0;
 
   useEffect(() => {
-    if (!open) return;
+    if (panelPhase !== "open") return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") closePanel();
     };
     const onPointer = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -67,7 +92,7 @@ export function FiltersBar({
       ) {
         return;
       }
-      setOpen(false);
+      closePanel();
     };
 
     window.addEventListener("keydown", onKey);
@@ -76,7 +101,16 @@ export function FiltersBar({
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("mousedown", onPointer);
     };
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelPhase]);
+
+  useEffect(() => {
+    if (panelPhase !== "closing") return;
+    const t = window.setTimeout(() => {
+      setPanelPhase("closed");
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [panelPhase]);
 
   const resetFilters = () => {
     onCategoriesChange([]);
@@ -84,8 +118,20 @@ export function FiltersBar({
   };
 
   return (
-    <div className="relative border-b border-line bg-surface px-3 py-3 sm:px-4">
-      <div className="flex items-center gap-2">
+    <div
+      className={
+        floating
+          ? "relative w-full max-w-[520px]"
+          : "relative border-b border-line bg-surface px-3 py-3 sm:px-4"
+      }
+    >
+      <div
+        className={
+          floating
+            ? "flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1 shadow-lg backdrop-blur-sm dark:bg-surface-raised/95"
+            : "flex items-center gap-2"
+        }
+      >
         <div
           className="seg-track flex min-w-0 flex-1 gap-0.5 rounded-full p-0.5"
           role="tablist"
@@ -122,13 +168,23 @@ export function FiltersBar({
           type="button"
           aria-expanded={open}
           aria-controls={panelId}
-          onClick={() => setOpen((v) => !v)}
+          onClick={togglePanel}
           className={`relative shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
-            open || hasFilters ? "btn-secondary-active" : "btn-secondary"
+            open || hasFilters || panelPhase === "closing"
+              ? "btn-secondary-active"
+              : "btn-secondary"
           }`}
         >
           <FilterIcon />
           <span>Filters</span>
+          <span
+            className={`inline-block text-[10px] leading-none transition-transform duration-200 ${
+              open || panelVisible ? "rotate-180" : "rotate-0"
+            }`}
+            aria-hidden
+          >
+            ▾
+          </span>
           {hasFilters && (
             <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--blue)] px-1 text-[11px] font-bold tabular-nums text-white">
               {activeFilterCount}
@@ -137,11 +193,17 @@ export function FiltersBar({
         </button>
       </div>
 
-      {open && (
+      {panelPhase !== "closed" && (
         <div
           ref={panelRef}
           id={panelId}
-          className="absolute left-2 right-2 top-[calc(100%-2px)] z-30 rounded-xl border border-line-strong bg-surface p-3 shadow-lg sm:left-3 sm:right-3"
+          className={`filters-panel ${
+            panelVisible ? "filters-panel-open" : ""
+          } ${
+            floating
+              ? "absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border border-line-strong bg-surface p-3 shadow-lg"
+              : "absolute left-2 right-2 top-[calc(100%-2px)] z-30 rounded-xl border border-line-strong bg-surface p-3 shadow-lg sm:left-3 sm:right-3"
+          }`}
         >
           {showDate && (
             <div className="mb-3">
@@ -212,7 +274,7 @@ export function FiltersBar({
             </button>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={closePanel}
               className="btn-primary rounded-full border px-3.5 py-1.5 text-sm font-semibold"
             >
               Done

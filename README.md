@@ -32,14 +32,23 @@ Fill in `.env.local`:
 |---|---|---|
 | `Type` | Single select | `Event`, `Place` (app also accepts lowercase) |
 | `Title` | Single line text | Required |
-| `Description` | Long text | Optional |
+| `Description` | Long text | Optional; may include `Organizer: …` / `Contact: …` / `Time: …` metadata lines |
+| `Organizer` | Single line text | Optional column — if missing, organizer is read from Description |
 | `Category` | Single select | `food`, `nightlife`, `nature`, `culture`, `shopping`, `sports`, `kids`, `art`, `music`, `education`, `other` |
 | `Lat` / `Lng` | Number | Optional coordinates |
 | `LocationText` | Single line text | Fallback / TBD |
 | `SourceURL` | URL | Optional |
-| `Description` | Long text | Optional; may include `Contact: …` / `Time: …` metadata lines |
 | `EventDate` / `EventEndDate` | Date | Events only |
 | `Status` | Single select | `pending` (default), `approved`, `rejected` |
+
+### Airtable table: `Subscribers`
+
+Create a second table in the same base for “Stay updated” signups:
+
+| Field | Type | Notes |
+|---|---|---|
+| `Email` | Email or single line text | Required, unique-ish |
+| `Status` | Single select | `active` (default), optional `unsubscribed` |
 
 ```bash
 npm run dev
@@ -79,3 +88,6 @@ Airtable credentials stay server-side; only `NEXT_PUBLIC_MAPBOX_TOKEN` is expose
 
 - `GET /api/entries` — approved + pending entries (rejected excluded)
 - `POST /api/entries` — create pending entry (honeypot field: `website`)
+- `POST /api/subscribe` — email signup for updates (honeypot field: `website`)
+
+Emails are stored in Airtable only — send digests yourself (or wire Mailchimp/Resend later).

@@ -8,6 +8,7 @@ export interface Entry {
   title: string;
   description?: string;
   category: Category;
+  organizerName: string;
   lat?: number;
   lng?: number;
   locationText?: string;
@@ -24,6 +25,7 @@ export interface CreateEntryInput {
   title: string;
   description?: string;
   category: Category;
+  organizerName: string;
   lat?: number;
   lng?: number;
   locationText?: string;

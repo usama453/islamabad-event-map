@@ -4,10 +4,10 @@ import Image from "next/image";
 import { CATEGORY_LABELS } from "@/lib/constants";
 import type { Entry } from "@/lib/types";
 import {
+  entryOrganizerName,
   formatEventSchedule,
   getEntryImage,
   happeningSoonLabel,
-  hasCoordinates,
   isEventHappeningSoon,
 } from "@/lib/utils";
 
@@ -62,22 +62,11 @@ function PlaceIcon({ className = "" }: { className?: string }) {
 export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
   const isEvent = entry.type === "event";
   const schedule = formatEventSchedule(entry);
-  const coords = hasCoordinates(entry);
   const image = getEntryImage(entry);
-  const locationTbd =
-    !coords &&
-    Boolean(entry.locationText?.toLowerCase().includes("not finalised"));
-
-  const locationLine = locationTbd
-    ? "Location TBD"
-    : entry.locationText?.trim() ||
-      (coords ? "Islamabad" : "No exact location");
-
-  const typeLabel = isEvent ? "Event" : "Place";
-  const metaLine = isEvent ? schedule ?? "Date TBA" : "Open regularly";
   const soon = isEvent && isEventHappeningSoon(entry);
   const soonLabel = soon ? happeningSoonLabel(entry) : null;
   const isPending = entry.status === "pending";
+  const markedBy = entryOrganizerName(entry);
 
   return (
     <button
@@ -128,24 +117,6 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
       <div className="min-w-0 flex-1 py-0.5">
         <div className="flex flex-wrap items-center gap-1.5">
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-              isSelected
-                ? "bg-white/20 text-white"
-                : isPending
-                  ? "pending-badge"
-                  : isEvent
-                    ? "entry-type-event"
-                    : "entry-type-place"
-            }`}
-          >
-            {isEvent ? (
-              <EventIcon className="h-3 w-3" />
-            ) : (
-              <PlaceIcon className="h-3 w-3" />
-            )}
-            {typeLabel}
-          </span>
-          <span
             className={`text-[11px] font-semibold uppercase tracking-wide ${
               isSelected ? "text-white/75" : "text-ink-muted"
             }`}
@@ -179,31 +150,27 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
           {entry.title}
         </h3>
 
-        <p
-          className={`mt-1.5 flex items-center gap-1.5 truncate text-sm font-medium ${
-            isSelected
-              ? "text-white/90"
-              : isPending
-                ? "text-[var(--pending-deep)]"
-                : isEvent
-                  ? "entry-meta-event"
-                  : "entry-meta-place"
-          }`}
-        >
-          {isEvent ? (
+        {isEvent && (
+          <p
+            className={`mt-1.5 flex items-center gap-1.5 truncate text-sm font-medium ${
+              isSelected
+                ? "text-white/90"
+                : isPending
+                  ? "text-[var(--pending-deep)]"
+                  : "entry-meta-event"
+            }`}
+          >
             <EventIcon className="h-3.5 w-3.5 shrink-0 opacity-80" />
-          ) : (
-            <PlaceIcon className="h-3.5 w-3.5 shrink-0 opacity-80" />
-          )}
-          <span className="truncate">{metaLine}</span>
-        </p>
+            <span className="truncate">{schedule ?? "Date TBA"}</span>
+          </p>
+        )}
 
         <p
-          className={`mt-0.5 truncate text-sm ${
-            isSelected ? "text-white/75" : "text-ink-muted"
+          className={`mt-1 truncate text-sm ${
+            isSelected ? "text-white/80" : "text-ink-muted"
           }`}
         >
-          {locationLine}
+          by {markedBy}
         </p>
 
         {entry.sourceUrl && (

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FiltersBar } from "@/components/FiltersBar";
 import { EntryList } from "@/components/EntryList";
 import { Header } from "@/components/Header";
+import { StayUpdated } from "@/components/StayUpdated";
 import { SubmitForm } from "@/components/SubmitForm";
 import { AppSplash, QuietLoader } from "@/components/LoadingScreen";
 import type { Category, DateFilter, ViewFilter } from "@/lib/constants";
@@ -157,26 +158,21 @@ export function HomePage() {
     setShowSubmit(true);
   }, []);
 
+  const handleIntroDone = useCallback(() => setIntroReady(true), []);
+
+  // Never leave the splash waiting forever if the fetch hangs
+  useEffect(() => {
+    if (!loading) return;
+    const t = window.setTimeout(() => setLoading(false), 10000);
+    return () => window.clearTimeout(t);
+  }, [loading]);
+
   return (
-    <AppSplash ready={!loading} onIntroDone={() => setIntroReady(true)}>
-      <Header />
-      <div className="flex h-[calc(100vh-72px)] flex-col lg:flex-row">
-      {/* Left: filters + list */}
-      <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface lg:w-[32%] lg:max-w-[420px] lg:flex-none">
-        <div className="shrink-0">
-          <FiltersBar
-            viewFilter={viewFilter}
-            onViewFilterChange={handleViewFilterChange}
-            selectedCategories={selectedCategories}
-            onCategoriesChange={setSelectedCategories}
-            dateFilter={dateFilter}
-            onDateFilterChange={setDateFilter}
-            availableCategories={availableCategories}
-            allCount={allCount}
-            eventCount={eventCount}
-            placeCount={placeCount}
-          />
-        </div>
+    <AppSplash ready={!loading} onIntroDone={handleIntroDone}>
+      <div className="flex h-dvh flex-col lg:flex-row">
+      {/* Left: brand + list */}
+      <section className="relative flex min-h-0 min-w-0 flex-[1.15] flex-col overflow-hidden bg-surface lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none">
+        <Header variant="sidebar" />
 
         {showSubmit ? (
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
@@ -251,16 +247,16 @@ export function HomePage() {
                 onClick={openSuggest}
                 className="btn-primary pointer-events-auto mx-auto flex w-full max-w-sm items-center justify-center rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg"
               >
-                Suggest an event/place
+                Add an Event/Spot
               </button>
             </div>
           </>
         )}
       </section>
 
-      {/* Right: full-height map */}
-      <aside className="relative h-[40vh] shrink-0 border-t border-line lg:h-auto lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0">
-        <div className="h-full lg:absolute lg:inset-0">
+      {/* Right: full-viewport map on desktop; filters float on top */}
+      <aside className="relative h-[38vh] max-h-[340px] shrink-0 border-t border-line lg:h-full lg:max-h-none lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0">
+        <div className="absolute inset-0">
           <EntryMap
             entries={mapEntries}
             selectedId={selectedId}
@@ -278,6 +274,32 @@ export function HomePage() {
             animatePins={introReady}
           />
         </div>
+        {!showSubmit && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-3 pt-3">
+            <div className="pointer-events-auto w-full max-w-[520px]">
+              <FiltersBar
+                floating
+                viewFilter={viewFilter}
+                onViewFilterChange={handleViewFilterChange}
+                selectedCategories={selectedCategories}
+                onCategoriesChange={setSelectedCategories}
+                dateFilter={dateFilter}
+                onDateFilterChange={setDateFilter}
+                availableCategories={availableCategories}
+                allCount={allCount}
+                eventCount={eventCount}
+                placeCount={placeCount}
+              />
+            </div>
+          </div>
+        )}
+        {!showSubmit && (
+          <div className="pointer-events-none absolute bottom-3 right-3 z-30 w-[min(calc(100%-1.5rem),280px)]">
+            <div className="pointer-events-auto">
+              <StayUpdated />
+            </div>
+          </div>
+        )}
       </aside>
       </div>
     </AppSplash>

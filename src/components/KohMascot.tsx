@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
+import { KohAboutModal } from "./KohAboutModal";
 import { useTheme } from "./ThemeProvider";
 
 export type KohMood = "idle" | "wave" | "look" | "cheer" | "run" | "lost";
@@ -11,6 +12,7 @@ interface KohMascotProps {
   className?: string;
   interactive?: boolean;
   label?: string;
+  onClick?: () => void;
 }
 
 /**
@@ -23,6 +25,7 @@ export function KohMascot({
   className = "",
   interactive = false,
   label,
+  onClick,
 }: KohMascotProps) {
   const [localMood, setLocalMood] = useState<KohMood>(mood);
 
@@ -34,6 +37,7 @@ export function KohMascot({
     if (!interactive) return;
     setLocalMood("wave");
     window.setTimeout(() => setLocalMood("idle"), 1200);
+    onClick?.();
   };
 
   const animClass =
@@ -251,6 +255,7 @@ export function KohCompanion({ className = "" }: KohCompanionProps) {
   const { theme } = useTheme();
   const tips = theme === "dark" ? KOH_TIPS_DARK : KOH_TIPS_LIGHT;
   const [tip, setTip] = useState(0);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   useEffect(() => {
     setTip(0);
@@ -264,18 +269,32 @@ export function KohCompanion({ className = "" }: KohCompanionProps) {
   }, [tips.length]);
 
   return (
-    <div
-      className={`pointer-events-auto absolute bottom-4 left-4 z-10 flex max-w-[220px] items-end gap-2 ${className}`}
-    >
-      <KohMascot size={64} interactive mood="idle" label="Say hi to Koh" />
-      <div className="koh-bubble mb-2 rounded-2xl rounded-bl-md border border-line bg-raised/95 px-3 py-2 text-[12px] font-medium leading-snug text-ink shadow-md backdrop-blur-sm">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#2d8a4e]">
-          Koh
-        </p>
-        <p key={tip} className="koh-tip-fade mt-0.5">
-          {tips[tip]}
-        </p>
+    <>
+      <div
+        className={`pointer-events-auto absolute bottom-4 left-4 z-10 flex max-w-[220px] items-end gap-2 ${className}`}
+      >
+        <KohMascot
+          size={64}
+          interactive
+          mood="idle"
+          label="About Islamabad Explore — talk to Koh"
+          onClick={() => setAboutOpen(true)}
+        />
+        <button
+          type="button"
+          onClick={() => setAboutOpen(true)}
+          className="koh-bubble mb-2 rounded-2xl rounded-bl-md border border-line bg-raised/95 px-3 py-2 text-left text-[12px] font-medium leading-snug text-ink shadow-md backdrop-blur-sm transition hover:border-ink-faint"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#2d8a4e]">
+            Koh
+          </p>
+          <p key={tip} className="koh-tip-fade mt-0.5">
+            {tips[tip]}
+          </p>
+          <p className="mt-1 text-[10px] text-ink-faint">Tap me for the lore</p>
+        </button>
       </div>
-    </div>
+      <KohAboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+    </>
   );
 }

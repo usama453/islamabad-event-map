@@ -7,6 +7,7 @@ import type { Entry } from "@/lib/types";
 import {
   entryBodyText,
   entryContactPhone,
+  entryOrganizerName,
   formatEventSchedule,
   getEntryImage,
   happeningSoonLabel,
@@ -40,6 +41,7 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
   const schedule = formatEventSchedule(entry);
   const body = entryBodyText(entry);
   const contactPhone = entryContactPhone(entry);
+  const organizer = entryOrganizerName(entry);
   const isEvent = entry.type === "event";
   const isPending = entry.status === "pending";
   const soonLabel = isEvent && !isPending ? happeningSoonLabel(entry) : null;
@@ -52,12 +54,6 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
 
   const goingCount = goingBase + (registered ? 1 : 0);
   const likeCount = likeBase + (liked ? 1 : 0);
-
-  const locationLine = entry.locationText?.trim()
-    ? entry.locationText
-    : hasCoordinates(entry)
-      ? "Islamabad"
-      : "Location TBD";
 
   const mapsUrl =
     hasCoordinates(entry)
@@ -158,14 +154,18 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
               {soonLabel}
             </span>
           )}
-          <p
-            className={`font-medium ${
-              isEvent ? "entry-meta-event" : "entry-meta-place"
-            }`}
-          >
-            {isEvent ? schedule ?? "Date TBA" : "Open regularly"}
+          <p className="font-medium text-ink">
+            by {organizer}
           </p>
-          <p className="text-ink-muted">{locationLine}</p>
+          {isEvent && (
+            <p className="font-medium entry-meta-event">
+              {schedule ?? "Date TBA"}
+            </p>
+          )}
+          {entry.locationText?.trim() &&
+            !entry.locationText.toLowerCase().includes("not finalised") && (
+              <p className="text-ink-muted">{entry.locationText.trim()}</p>
+            )}
           {contactPhone && (
             <a
               href={`tel:${contactPhone.replace(/\s+/g, "")}`}
