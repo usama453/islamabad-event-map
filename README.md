@@ -36,8 +36,8 @@ Live “people viewing” uses **Upstash Redis** when set, otherwise **Airtable*
 |---|---|---|
 | `Type` | Single select | `Event`, `Place` (app also accepts lowercase) |
 | `Title` | Single line text | Required |
-| `Description` | Long text | Optional; may include `Organizer: …` / `Contact: …` / `Time: …` metadata lines |
-| `Organizer` | Single line text | Optional column — if missing, organizer is read from Description |
+| `Description` | Long text | Optional; may include `Contact: …` / `Time: …` metadata lines |
+| `Organizer` | Single line text | **Required column** — submitter’s name (queryable). Create this field if missing. |
 | `Category` | Single select | `food`, `nightlife`, `nature`, `culture`, `shopping`, `sports`, `kids`, `art`, `music`, `education`, `other` |
 | `Lat` / `Lng` | Number | Optional coordinates |
 | `LocationText` | Single line text | Fallback / TBD |

@@ -132,7 +132,7 @@ export function SubmitForm({
       setError("Title is required");
       return;
     }
-    if (!organizerName.trim()) {
+    if (!organizerName.trim() || organizerName.trim().length < 2) {
       setError("Your name is required");
       return;
     }

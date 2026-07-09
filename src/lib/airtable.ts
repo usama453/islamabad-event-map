@@ -82,35 +82,77 @@ export async function fetchPublicEntries(): Promise<Entry[]> {
   return records.map(mapRecord);
 }
 
+function buildDescription(
+  input: CreateEntryInput,
+  includeOrganizerInDescription: boolean
+): string | undefined {
+  const metaLines: string[] = [];
+  if (includeOrganizerInDescription) {
+    metaLines.push(`Organizer: ${input.organizerName.trim()}`);
+  }
+  if (input.contactPhone?.trim()) {
+    metaLines.push(`Contact: ${input.contactPhone.trim()}`);
+  }
+  const body = input.description?.trim() ?? "";
+  if (metaLines.length === 0) return body || undefined;
+  return body ? `${metaLines.join("\n")}\n\n${body}` : metaLines.join("\n");
+}
+
+function isUnknownFieldError(error: unknown, fieldName: string): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes(`Unknown field name: "${fieldName}"`) ||
+    message.includes(`Unknown field name: '${fieldName}'`)
+  );
+}
+
 export async function createPendingEntry(
   input: CreateEntryInput
 ): Promise<Entry> {
+  const organizer = input.organizerName.trim();
+  if (!organizer) {
+    throw new Error("Your name is required");
+  }
+
   // Airtable single-select options are capitalized: Event / Place
-  const fields: FieldSet = {
+  const baseFields: FieldSet = {
     Type: input.type === "place" ? "Place" : "Event",
     Title: input.title,
     Category: input.category,
     Status: "pending",
+    Organizer: organizer,
   };
 
-  // Organizer / Contact stored as Description metadata (no extra columns required).
-  // Optional Airtable `Organizer` field is also read when present.
-  const metaLines: string[] = [`Organizer: ${input.organizerName.trim()}`];
-  if (input.contactPhone?.trim()) {
-    metaLines.push(`Contact: ${input.contactPhone.trim()}`);
-  }
-  fields.Description = input.description?.trim()
-    ? `${metaLines.join("\n")}\n\n${input.description.trim()}`
-    : metaLines.join("\n");
-  if (input.lat != null) fields.Lat = input.lat;
-  if (input.lng != null) fields.Lng = input.lng;
-  if (input.locationText) fields.LocationText = input.locationText;
-  if (input.sourceUrl) fields.SourceURL = input.sourceUrl;
-  if (input.eventDate) fields.EventDate = input.eventDate;
-  if (input.eventEndDate) fields.EventEndDate = input.eventEndDate;
+  if (input.lat != null) baseFields.Lat = input.lat;
+  if (input.lng != null) baseFields.Lng = input.lng;
+  if (input.locationText) baseFields.LocationText = input.locationText;
+  if (input.sourceUrl) baseFields.SourceURL = input.sourceUrl;
+  if (input.eventDate) baseFields.EventDate = input.eventDate;
+  if (input.eventEndDate) baseFields.EventEndDate = input.eventEndDate;
 
-  const [record] = await getBase()(TABLE_NAME).create([{ fields }]);
-  return mapRecord(record);
+  const table = getBase()(TABLE_NAME);
+
+  try {
+    const description = buildDescription(input, false);
+    if (description) baseFields.Description = description;
+    const [record] = await table.create([{ fields: baseFields }]);
+    return mapRecord(record);
+  } catch (error) {
+    // Base may not have Organizer column yet — fall back to Description metadata
+    if (!isUnknownFieldError(error, "Organizer")) throw error;
+
+    console.warn(
+      'Airtable is missing an "Organizer" single-line text field on Entries. ' +
+        "Add it in Airtable so names are queryable as a real column."
+    );
+
+    const withoutOrganizer: FieldSet = { ...baseFields };
+    delete withoutOrganizer.Organizer;
+    const description = buildDescription(input, true);
+    if (description) withoutOrganizer.Description = description;
+    const [record] = await table.create([{ fields: withoutOrganizer }]);
+    return mapRecord(record);
+  }
 }
 
 const SUBSCRIBERS_TABLE = "Subscribers";

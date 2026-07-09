@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
-    if (!organizerName) {
+    if (!organizerName || organizerName.length < 2) {
       return NextResponse.json(
         { error: "Your name is required" },
         { status: 400 }
