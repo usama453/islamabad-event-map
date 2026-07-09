@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Islamabad Events & Places Map
 
-## Getting Started
+Discover events and interesting places in Islamabad on an interactive map. Anyone can suggest a listing; you approve it in Airtable before it goes public.
 
-First, run the development server:
+## Tech stack
+
+- **Next.js 14** (App Router) + TypeScript + Tailwind CSS
+- **Airtable** as the database (server-side API routes only)
+- **Mapbox GL JS** via `react-map-gl`
+- **Vercel** for hosting
+
+Sprites: [Animated Warrior](https://opengameart.org/content/animated-warrior) by Calciumtrice (CC BY 3.0); ghost by ImogiaGames / Balmer (CC0); skeleton by Balmer (CC0). See `public/sprites/ATTRIBUTION.md`.
+
+## Local setup
+
+```bash
+npm install
+cp .env.example .env.local
+```
+
+Fill in `.env.local`:
+
+| Variable | Description |
+|---|---|
+| `AIRTABLE_TOKEN` | Personal access token from [Airtable](https://airtable.com/create/tokens) with `data.records:read` and `data.records:write` |
+| `AIRTABLE_BASE_ID` | Base ID from your Airtable URL (`https://airtable.com/appXXXXXXXX/...`) |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | Public token from [Mapbox](https://account.mapbox.com/access-tokens/) |
+
+### Airtable table: `Entries`
+
+| Field | Type | Notes |
+|---|---|---|
+| `Type` | Single select | `Event`, `Place` (app also accepts lowercase) |
+| `Title` | Single line text | Required |
+| `Description` | Long text | Optional |
+| `Category` | Single select | `food`, `nightlife`, `nature`, `culture`, `shopping`, `sports`, `kids`, `art`, `music`, `education`, `other` |
+| `Lat` / `Lng` | Number | Optional coordinates |
+| `LocationText` | Single line text | Fallback / TBD |
+| `SourceURL` | URL | Optional |
+| `Description` | Long text | Optional; may include `Contact: …` / `Time: …` metadata lines |
+| `EventDate` / `EventEndDate` | Date | Events only |
+| `Status` | Single select | `pending` (default), `approved`, `rejected` |
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How testers use it
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Browse the list + map; filter by All / Events / Places, category, and date
+2. Click a listing or map pin to sync selection
+3. Use **Suggest** in the header to submit a place or event (saved as `pending`)
+4. You approve in Airtable → it appears on the live map after refresh
 
-## Learn More
+## Admin approval
 
-To learn more about Next.js, take a look at the following resources:
+1. Open the **Entries** table in Airtable
+2. Filter `Status = pending`
+3. Set `approved` or `rejected`
+4. Approved rows show on the site (refresh)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy to Vercel (for user testing)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push this repo to GitHub
+2. Import the project at [vercel.com/new](https://vercel.com/new)
+3. Add the same three env vars as in `.env.local` (Production + Preview)
+4. Deploy — share the `*.vercel.app` URL with testers
+5. In [Mapbox](https://account.mapbox.com/access-tokens/), allow your Vercel domain on the public token (URL restrictions), or testers may see a blank map
 
-## Deploy on Vercel
+```bash
+npm run build   # sanity-check locally before deploy
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Airtable credentials stay server-side; only `NEXT_PUBLIC_MAPBOX_TOKEN` is exposed to the browser.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## API
+
+- `GET /api/entries` — approved entries
+- `POST /api/entries` — create pending entry (honeypot field: `website`)

@@ -1,0 +1,245 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+import type { Category, DateFilter, ViewFilter } from "@/lib/constants";
+import { CATEGORY_LABELS, DATE_FILTER_LABELS } from "@/lib/constants";
+
+interface FiltersBarProps {
+  viewFilter: ViewFilter;
+  onViewFilterChange: (filter: ViewFilter) => void;
+  selectedCategories: Category[];
+  onCategoriesChange: (categories: Category[]) => void;
+  dateFilter: DateFilter;
+  onDateFilterChange: (filter: DateFilter) => void;
+  availableCategories: Category[];
+  allCount?: number;
+  eventCount?: number;
+  placeCount?: number;
+}
+
+export function FiltersBar({
+  viewFilter,
+  onViewFilterChange,
+  selectedCategories,
+  onCategoriesChange,
+  dateFilter,
+  onDateFilterChange,
+  availableCategories,
+  allCount = 0,
+  eventCount = 0,
+  placeCount = 0,
+}: FiltersBarProps) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const toggleCategory = (category: Category) => {
+    if (selectedCategories.includes(category)) {
+      onCategoriesChange(selectedCategories.filter((c) => c !== category));
+    } else {
+      onCategoriesChange([...selectedCategories, category]);
+    }
+  };
+
+  const segments: { id: ViewFilter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: allCount },
+    { id: "event", label: "Events", count: eventCount },
+    { id: "place", label: "Places", count: placeCount },
+  ];
+
+  const showDate = viewFilter === "event" || viewFilter === "all";
+  const activeFilterCount =
+    selectedCategories.length + (showDate && dateFilter !== "upcoming" ? 1 : 0);
+  const hasFilters = activeFilterCount > 0;
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    const onPointer = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        panelRef.current?.contains(target) ||
+        buttonRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onPointer);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onPointer);
+    };
+  }, [open]);
+
+  const resetFilters = () => {
+    onCategoriesChange([]);
+    if (showDate) onDateFilterChange("upcoming");
+  };
+
+  return (
+    <div className="relative border-b border-line bg-surface px-3 py-3 sm:px-4">
+      <div className="flex items-center gap-2">
+        <div
+          className="seg-track flex min-w-0 flex-1 gap-0.5 rounded-full p-0.5"
+          role="tablist"
+          aria-label="Listing type"
+        >
+          {segments.map((seg) => {
+            const active = viewFilter === seg.id;
+            return (
+              <button
+                key={seg.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onViewFilterChange(seg.id)}
+                className={`relative min-w-0 flex-1 rounded-full px-2 py-1.5 text-center text-sm font-semibold transition-colors ${
+                  active ? "seg-tab-active" : "seg-tab"
+                }`}
+              >
+                {seg.label}
+                <span
+                  className={`ml-1 tabular-nums ${
+                    active ? "text-ink-muted" : "text-ink-faint"
+                  }`}
+                >
+                  {seg.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          ref={buttonRef}
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((v) => !v)}
+          className={`relative shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+            open || hasFilters ? "btn-secondary-active" : "btn-secondary"
+          }`}
+        >
+          <FilterIcon />
+          <span>Filters</span>
+          {hasFilters && (
+            <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--blue)] px-1 text-[11px] font-bold tabular-nums text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {open && (
+        <div
+          ref={panelRef}
+          id={panelId}
+          className="absolute left-2 right-2 top-[calc(100%-2px)] z-30 rounded-xl border border-line-strong bg-surface p-3 shadow-lg sm:left-3 sm:right-3"
+        >
+          {showDate && (
+            <div className="mb-3">
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                When
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.keys(DATE_FILTER_LABELS) as DateFilter[]).map(
+                  (filter) => {
+                    const active = dateFilter === filter;
+                    return (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => onDateFilterChange(filter)}
+                        className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                          active
+                            ? "chip-selected"
+                            : "border-line-strong text-ink-muted hover:border-ink-faint hover:text-ink"
+                        }`}
+                      >
+                        {DATE_FILTER_LABELS[filter]}
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+              Category
+            </p>
+            {availableCategories.length === 0 ? (
+              <p className="text-sm text-ink-faint">No categories yet</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {availableCategories.map((category) => {
+                  const selected = selectedCategories.includes(category);
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => toggleCategory(category)}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                        selected
+                          ? "chip-selected"
+                          : "border-line-strong text-ink-muted hover:border-ink-faint hover:text-ink"
+                      }`}
+                    >
+                      {CATEGORY_LABELS[category]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-2.5">
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={!hasFilters}
+              className="text-sm text-ink-muted transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="btn-primary rounded-full border px-3.5 py-1.5 text-sm font-semibold"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      aria-hidden
+      className="shrink-0"
+    >
+      <path
+        d="M2 3.5h12M4.5 8h7M6.5 12.5h3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
