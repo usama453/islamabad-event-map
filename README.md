@@ -25,6 +25,10 @@ Fill in `.env.local`:
 | `AIRTABLE_TOKEN` | Personal access token from [Airtable](https://airtable.com/create/tokens) with `data.records:read` and `data.records:write` |
 | `AIRTABLE_BASE_ID` | Base ID from your Airtable URL (`https://airtable.com/appXXXXXXXX/...`) |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Public token from [Mapbox](https://account.mapbox.com/access-tokens/) |
+| `UPSTASH_REDIS_REST_URL` | Optional — Upstash Redis REST URL (preferred for live viewer count) |
+| `UPSTASH_REDIS_REST_TOKEN` | Optional — Upstash Redis REST token |
+
+Live “people viewing” uses **Upstash Redis** when set, otherwise **Airtable** (rejected `__presence__:` rows in `Entries`), otherwise in-memory (local only).
 
 ### Airtable table: `Entries`
 
@@ -74,7 +78,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 1. Push this repo to GitHub
 2. Import the project at [vercel.com/new](https://vercel.com/new)
-3. Add the same three env vars as in `.env.local` (Production + Preview)
+3. Add the same env vars as in `.env.local` (Production + Preview), including Upstash Redis for a real visitor count
 4. Deploy — share the `*.vercel.app` URL with testers
 5. In [Mapbox](https://account.mapbox.com/access-tokens/), allow your Vercel domain on the public token (URL restrictions), or testers may see a blank map
 
@@ -89,5 +93,6 @@ Airtable credentials stay server-side; only `NEXT_PUBLIC_MAPBOX_TOKEN` is expose
 - `GET /api/entries` — approved + pending entries (rejected excluded)
 - `POST /api/entries` — create pending entry (honeypot field: `website`)
 - `POST /api/subscribe` — email signup for updates (honeypot field: `website`)
+- `GET` / `POST /api/presence` — live viewer heartbeat (`visitorId`); returns `{ viewers, shared }`
 
 Emails are stored in Airtable only — send digests yourself (or wire Mailchimp/Resend later).

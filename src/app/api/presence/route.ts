@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPresenceCount, touchPresence } from "@/lib/presence";
+import {
+  getPresenceCount,
+  hasSharedPresenceStore,
+  touchPresence,
+} from "@/lib/presence";
+
+export const dynamic = "force-dynamic";
 
 function isValidVisitorId(value: unknown): value is string {
   return (
@@ -11,7 +17,11 @@ function isValidVisitorId(value: unknown): value is string {
 }
 
 export async function GET() {
-  return NextResponse.json({ viewers: getPresenceCount() });
+  const viewers = await getPresenceCount();
+  return NextResponse.json({
+    viewers,
+    shared: hasSharedPresenceStore(),
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -21,9 +31,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid visitorId" }, { status: 400 });
     }
 
-    const viewers = touchPresence(body.visitorId);
-    return NextResponse.json({ viewers });
-  } catch {
+    const viewers = await touchPresence(body.visitorId);
+    return NextResponse.json({
+      viewers,
+      shared: hasSharedPresenceStore(),
+    });
+  } catch (error) {
+    console.error("Presence error:", error);
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 }
