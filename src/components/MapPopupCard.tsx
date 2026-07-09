@@ -154,9 +154,9 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
               {soonLabel}
             </span>
           )}
-          <p className="font-medium text-ink">
-            by {organizer}
-          </p>
+          {organizer && (
+            <p className="font-medium text-ink">by {organizer}</p>
+          )}
           {isEvent && (
             <p className="font-medium entry-meta-event">
               {schedule ?? "Date TBA"}

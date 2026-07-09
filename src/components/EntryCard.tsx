@@ -165,13 +165,15 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
           </p>
         )}
 
-        <p
-          className={`mt-1 truncate text-sm ${
-            isSelected ? "text-white/80" : "text-ink-muted"
-          }`}
-        >
-          by {markedBy}
-        </p>
+        {markedBy && (
+          <p
+            className={`mt-1 truncate text-sm ${
+              isSelected ? "text-white/80" : "text-ink-muted"
+            }`}
+          >
+            by {markedBy}
+          </p>
+        )}
 
         {entry.sourceUrl && (
           <a

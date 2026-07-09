@@ -146,9 +146,11 @@ function PinTooltip({ entry }: { entry: Entry }) {
       <p className="mt-1 text-[13px] font-semibold leading-snug text-ink">
         {truncate(entry.title, 48)}
       </p>
-      <p className="mt-0.5 truncate text-[11px] text-ink-muted">
-        by {organizer}
-      </p>
+      {organizer && (
+        <p className="mt-0.5 truncate text-[11px] text-ink-muted">
+          by {organizer}
+        </p>
+      )}
       {isEvent && (
         <p
           className={`mt-1 truncate text-[11px] font-medium ${

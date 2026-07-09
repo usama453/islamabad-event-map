@@ -237,7 +237,7 @@ export function entryContactPhone(entry: Entry): string | undefined {
 
 export function entryOrganizerName(entry: Entry): string {
   if (entry.organizerName?.trim()) return entry.organizerName.trim();
-  return extractMetaLine(entry.description, "Organizer") ?? "@usamabelike";
+  return extractMetaLine(entry.description, "Organizer") ?? "";
 }
 
 /** Description without metadata lines (Time / Contact / Organizer) */
