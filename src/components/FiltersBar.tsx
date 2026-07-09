@@ -128,7 +128,7 @@ export function FiltersBar({
       <div
         className={
           floating
-            ? "flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1 shadow-lg backdrop-blur-sm dark:bg-surface-raised/95"
+            ? "filters-chrome flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1 shadow-lg backdrop-blur-sm dark:bg-surface-raised/95"
             : "flex items-center gap-2"
         }
       >
