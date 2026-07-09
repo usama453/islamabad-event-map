@@ -1956,26 +1956,71 @@ body.koh-crt button.btn-primary.btn-primary-selected {
   box-shadow: 3px 3px 0 var(--crt-shadow) !important;
 }
 
-body.koh-crt .entry-card-event h3,
-body.koh-crt .entry-card-place h3,
-body.koh-crt .entry-card-pending h3,
-body.koh-crt .entry-card-event-selected h3,
-body.koh-crt .entry-card-pending-selected h3,
-body.koh-crt button.btn-primary h3 {
-  font-family: var(--font-pixel), monospace;
-  font-size: 10px !important;
-  font-weight: 400;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  line-height: 1.55 !important;
+/* Left sidebar: readable bold sans all-caps (not pixel) */
+body.koh-crt .sidebar-pane,
+body.koh-crt .sidebar-pane * {
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  image-rendering: auto !important;
 }
 
-body.koh-crt .entry-card-event .text-\[11px\],
-body.koh-crt .entry-card-place .text-\[11px\],
-body.koh-crt .entry-card-pending .text-\[11px\] {
-  font-family: var(--font-pixel), monospace;
-  font-size: 8px !important;
+body.koh-crt .sidebar-pane .brand-title {
+  font-size: 0.8rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.25;
+}
+
+body.koh-crt .sidebar-pane .brand-tagline {
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
   letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 0.2rem !important;
+}
+
+body.koh-crt .sidebar-pane .btn-primary,
+body.koh-crt .sidebar-pane .btn-secondary,
+body.koh-crt .sidebar-pane .btn-secondary-active {
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.koh-crt .sidebar-pane .entry-card-event h3,
+body.koh-crt .sidebar-pane .entry-card-place h3,
+body.koh-crt .sidebar-pane .entry-card-pending h3,
+body.koh-crt .sidebar-pane .entry-card-event-selected h3,
+body.koh-crt .sidebar-pane .entry-card-pending-selected h3,
+body.koh-crt .sidebar-pane button.btn-primary h3 {
+  font-size: 0.82rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.3 !important;
+}
+
+body.koh-crt .sidebar-pane .entry-card-event .text-\[11px\],
+body.koh-crt .sidebar-pane .entry-card-place .text-\[11px\],
+body.koh-crt .sidebar-pane .entry-card-pending .text-\[11px\],
+body.koh-crt .sidebar-pane .text-sm,
+body.koh-crt .sidebar-pane .text-xs,
+body.koh-crt .sidebar-pane p,
+body.koh-crt .sidebar-pane span,
+body.koh-crt .sidebar-pane label {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+body.koh-crt .sidebar-pane input,
+body.koh-crt .sidebar-pane textarea,
+body.koh-crt .sidebar-pane select {
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 body.koh-crt .viewer-crowd {

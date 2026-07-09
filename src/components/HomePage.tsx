@@ -199,7 +199,7 @@ export function HomePage() {
       <div className="flex h-dvh flex-col lg:flex-row">
       {/* Left: brand + list — collapses on mobile when map is expanded */}
       <section
-        className={`relative min-w-0 flex-col overflow-hidden bg-surface transition-[flex-grow,min-height] duration-300 ease-out lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none ${
+        className={`sidebar-pane relative min-w-0 flex-col overflow-hidden bg-surface transition-[flex-grow,min-height] duration-300 ease-out lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none ${
           mapExpanded
             ? "hidden lg:flex"
             : "flex min-h-0 flex-[1.15]"
