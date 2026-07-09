@@ -197,102 +197,12 @@ export function HomePage() {
         onAddSpot={openSuggest}
       />
       <div className="flex h-dvh flex-col lg:flex-row">
-      {/* Left: brand + list — collapses on mobile when map is expanded */}
-      <section
-        className={`relative min-w-0 flex-col overflow-hidden bg-surface transition-[flex-grow,min-height] duration-300 ease-out lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none ${
-          mapExpanded
-            ? "hidden lg:flex"
-            : "flex min-h-0 flex-[1.15]"
-        }`}
-      >
-        <Header variant="sidebar" />
-
-        {showSubmit ? (
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-ink">
-                  Suggest an event or place
-                </h2>
-                <p className="mt-0.5 text-sm text-ink-muted">
-                  Shows as pending until an admin verifies it.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPinMode(false);
-                  setDraftPin(null);
-                  setShowSubmit(false);
-                }}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 py-1.5 text-sm font-semibold text-ink shadow-sm transition hover:border-ink-faint hover:bg-wash"
-              >
-                <span aria-hidden className="text-base leading-none">
-                  ×
-                </span>
-                Close
-              </button>
-            </div>
-            <div className="rounded-xl border border-line bg-wash p-4 sm:p-5">
-              <SubmitForm
-                compact
-                defaultType={suggestDefault}
-                lat={draftPin?.lat}
-                lng={draftPin?.lng}
-                exitPinModeSignal={exitPinModeSignal}
-                onLocationChange={(lat, lng) => {
-                  if (lat == null || lng == null) {
-                    setDraftPin(null);
-                  } else {
-                    setDraftPin({ lat, lng });
-                  }
-                }}
-                onPinModeChange={setPinMode}
-                onSuccess={() => {
-                  setDraftPin(null);
-                  setPinMode(false);
-                  loadEntries();
-                }}
-              />
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-4">
-              {error ? (
-                <div className="rounded-xl bg-danger-soft px-4 py-6 text-center">
-                  <p className="text-sm text-danger">{error}</p>
-                </div>
-              ) : (
-                <EntryList
-                  entries={filteredEntries}
-                  selectedId={selectedId}
-                  onSelect={handleListSelect}
-                  loading={loading}
-                  viewFilter={viewFilter}
-                  animateIn={introReady}
-                />
-              )}
-            </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)]/90 to-transparent px-3 pb-4 pt-10 sm:px-4">
-              <button
-                type="button"
-                onClick={openSuggest}
-                className="btn-primary pointer-events-auto mx-auto flex w-full max-w-sm items-center justify-center rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg"
-              >
-                Add an Event/Spot
-              </button>
-            </div>
-          </>
-        )}
-      </section>
-
-      {/* Right: full-viewport map on desktop; expandable on mobile */}
+      {/* Map: above list on mobile, right side on desktop */}
       <aside
-        className={`relative shrink-0 border-t border-line transition-[height,max-height,flex-grow] duration-300 ease-out lg:h-full lg:max-h-none lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0 ${
+        className={`relative order-1 shrink-0 border-b border-line transition-[height,flex-grow] duration-300 ease-out lg:order-2 lg:h-full lg:min-w-0 lg:flex-1 lg:border-b-0 lg:border-l ${
           mapExpanded
-            ? "h-dvh max-h-none flex-1 border-t-0"
-            : "h-[38vh] max-h-[340px]"
+            ? "h-dvh flex-1 border-b-0"
+            : "h-[54vh] min-h-[300px] max-h-[58vh] lg:max-h-none"
         }`}
       >
         <div className="absolute inset-0">
@@ -332,7 +242,7 @@ export function HomePage() {
           )}
         </button>
         {!showSubmit && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-3 pt-3 sm:px-4">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-2 pt-2 sm:px-4 sm:pt-3">
             <div className="pointer-events-auto w-full max-w-[min(100%,480px)]">
               <FiltersBar
                 floating
@@ -351,6 +261,94 @@ export function HomePage() {
           </div>
         )}
       </aside>
+
+      {/* List: below map on mobile, left sidebar on desktop */}
+      <section
+        className={`relative order-2 min-w-0 flex-col overflow-hidden bg-surface transition-[flex-grow] duration-300 ease-out lg:order-1 lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none ${
+          mapExpanded ? "hidden lg:flex" : "flex min-h-0 flex-1"
+        }`}
+      >
+        <Header variant="sidebar" />
+
+        {showSubmit ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-4">
+            <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3 sm:gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-ink sm:text-base">
+                  Suggest an event or place
+                </h2>
+                <p className="mt-0.5 text-xs text-ink-muted sm:text-sm">
+                  Shows as pending until an admin verifies it.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPinMode(false);
+                  setDraftPin(null);
+                  setShowSubmit(false);
+                }}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink shadow-sm transition hover:border-ink-faint hover:bg-wash sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
+              >
+                <span aria-hidden className="text-base leading-none">
+                  ×
+                </span>
+                Close
+              </button>
+            </div>
+            <div className="rounded-xl border border-line bg-wash p-3 sm:p-5">
+              <SubmitForm
+                compact
+                defaultType={suggestDefault}
+                lat={draftPin?.lat}
+                lng={draftPin?.lng}
+                exitPinModeSignal={exitPinModeSignal}
+                onLocationChange={(lat, lng) => {
+                  if (lat == null || lng == null) {
+                    setDraftPin(null);
+                  } else {
+                    setDraftPin({ lat, lng });
+                  }
+                }}
+                onPinModeChange={setPinMode}
+                onSuccess={() => {
+                  setDraftPin(null);
+                  setPinMode(false);
+                  loadEntries();
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 pb-20 sm:px-4 sm:py-4 sm:pb-24">
+              {error ? (
+                <div className="rounded-xl bg-danger-soft px-3 py-4 text-center sm:px-4 sm:py-6">
+                  <p className="text-sm text-danger">{error}</p>
+                </div>
+              ) : (
+                <EntryList
+                  entries={filteredEntries}
+                  selectedId={selectedId}
+                  onSelect={handleListSelect}
+                  loading={loading}
+                  viewFilter={viewFilter}
+                  animateIn={introReady}
+                />
+              )}
+            </div>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)]/90 to-transparent px-2 pb-3 pt-8 sm:px-4 sm:pb-4 sm:pt-10">
+              <button
+                type="button"
+                onClick={openSuggest}
+                className="btn-primary pointer-events-auto mx-auto flex w-full max-w-sm items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold shadow-lg sm:py-2.5 sm:text-sm"
+              >
+                Add an Event/Spot
+              </button>
+            </div>
+          </>
+        )}
+      </section>
       </div>
     </AppSplash>
   );

@@ -72,7 +72,7 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`group flex w-full items-start gap-3.5 rounded-xl border p-2 text-left transition ${
+      className={`group flex w-full items-start gap-2 rounded-lg border p-1.5 text-left transition sm:gap-3.5 sm:rounded-xl sm:p-2 ${
         isPending
           ? isSelected
             ? "entry-card-pending-selected border-transparent"
@@ -86,7 +86,7 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
               : "entry-card-place"
       }`}
     >
-      <div className="relative h-[72px] w-[96px] shrink-0 overflow-hidden rounded-lg bg-line sm:h-[80px] sm:w-[108px]">
+      <div className="relative h-[52px] w-[68px] shrink-0 overflow-hidden rounded-md bg-line sm:h-[80px] sm:w-[108px] sm:rounded-lg">
         <Image
           src={image}
           alt=""
@@ -97,7 +97,7 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
           sizes="108px"
         />
         <span
-          className={`absolute left-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-white shadow-sm ${
+          className={`absolute left-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-white shadow-sm sm:left-1.5 sm:top-1.5 sm:h-6 sm:w-6 ${
             isPending
               ? "bg-[var(--pending)]"
               : isEvent
@@ -107,17 +107,17 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
           aria-hidden
         >
           {isEvent ? (
-            <EventIcon className="h-3.5 w-3.5" />
+            <EventIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
           ) : (
-            <PlaceIcon className="h-3.5 w-3.5" />
+            <PlaceIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
           )}
         </span>
       </div>
 
-      <div className="min-w-0 flex-1 py-0.5">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="min-w-0 flex-1 py-0 sm:py-0.5">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
           <span
-            className={`text-[11px] font-semibold uppercase tracking-wide ${
+            className={`text-[10px] font-semibold uppercase tracking-wide sm:text-[11px] ${
               isSelected ? "text-white/75" : "text-ink-muted"
             }`}
           >
@@ -143,7 +143,7 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
         </div>
 
         <h3
-          className={`mt-1 line-clamp-2 text-[15px] font-semibold leading-snug ${
+          className={`mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug sm:mt-1 sm:text-[15px] ${
             isSelected ? "text-white" : "text-ink"
           }`}
         >
@@ -152,7 +152,7 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
 
         {isEvent && (
           <p
-            className={`mt-1.5 flex items-center gap-1.5 truncate text-sm font-medium ${
+            className={`mt-0.5 flex items-center gap-1 truncate text-xs font-medium sm:mt-1.5 sm:gap-1.5 sm:text-sm ${
               isSelected
                 ? "text-white/90"
                 : isPending
@@ -160,14 +160,14 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
                   : "entry-meta-event"
             }`}
           >
-            <EventIcon className="h-3.5 w-3.5 shrink-0 opacity-80" />
+            <EventIcon className="h-3 w-3 shrink-0 opacity-80 sm:h-3.5 sm:w-3.5" />
             <span className="truncate">{schedule ?? "Date TBA"}</span>
           </p>
         )}
 
         {markedBy && (
           <p
-            className={`mt-1 truncate text-sm ${
+            className={`mt-0.5 truncate text-xs sm:mt-1 sm:text-sm ${
               isSelected ? "text-white/80" : "text-ink-muted"
             }`}
           >
@@ -181,7 +181,7 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className={`mt-1 inline-block text-sm font-medium underline-offset-2 hover:underline ${
+            className={`mt-0.5 inline-block text-xs font-medium underline-offset-2 hover:underline sm:mt-1 sm:text-sm ${
               isSelected ? "text-white" : "text-ink"
             }`}
           >

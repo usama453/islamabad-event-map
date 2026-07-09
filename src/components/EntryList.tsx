@@ -147,13 +147,13 @@ export function EntryList({
 
   if (entries.length === 0) {
     return (
-      <div className="flex flex-col items-center py-16 text-center">
-        <KohMascot size={64} mood="look" interactive />
-        <p className="mt-3 text-lg font-semibold text-ink">
+      <div className="flex flex-col items-center py-8 text-center sm:py-16">
+        <KohMascot size={48} mood="look" interactive />
+        <p className="mt-2 text-base font-semibold text-ink sm:mt-3 sm:text-lg">
           No {emptyLabel(viewFilter)} yet
         </p>
-        <p className="mt-1 max-w-[240px] text-sm text-ink-muted">
-          Suggest one using the button in the top bar — Koh will keep watch.
+        <p className="mt-1 max-w-[240px] text-xs text-ink-muted sm:text-sm">
+          Suggest one using the button below — Koh will keep watch.
         </p>
       </div>
     );
@@ -161,10 +161,10 @@ export function EntryList({
 
   return (
     <div>
-      <p className="mb-4 text-sm text-ink-muted">
+      <p className="mb-1.5 text-xs text-ink-muted sm:mb-4 sm:text-sm">
         {countLabel(entries.length, viewFilter)}
       </p>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5 sm:gap-1">
         {previewEntries.map((entry, index) => {
           const stagger = Math.min(index, STACK_MAX_STAGGER);
           return (
@@ -197,7 +197,7 @@ export function EntryList({
                   type="button"
                   onClick={() => setEventsExpanded((v) => !v)}
                   aria-expanded={eventsExpanded}
-                  className="group/expand flex w-full items-center justify-center gap-1.5 px-2 py-2 text-sm font-semibold text-[var(--orange)] transition hover:text-[color-mix(in_srgb,var(--orange)_80%,black)]"
+                  className="group/expand flex w-full items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-[var(--orange)] transition hover:text-[color-mix(in_srgb,var(--orange)_80%,black)] sm:py-2 sm:text-sm"
                 >
                   {eventsExpanded ? (
                     <>

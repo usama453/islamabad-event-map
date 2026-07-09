@@ -37,19 +37,19 @@ interface HeaderProps {
 export function Header({ variant = "bar" }: HeaderProps) {
   if (variant === "sidebar") {
     return (
-      <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface px-3 py-2.5 sm:px-4 sm:py-3">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface px-2.5 py-1.5 sm:px-4 sm:py-3">
         <div className="flex items-center justify-between gap-2">
           <Link
             href="/"
-            className="flex items-center gap-2.5"
+            className="flex items-center gap-2 sm:gap-2.5"
             aria-label="Islamabad Explore home"
           >
-            <MapLogo className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
+            <MapLogo className="h-7 w-7 shrink-0 sm:h-9 sm:w-9" />
             <span className="leading-tight">
-              <span className="block text-[15px] font-semibold tracking-tight text-ink sm:text-base">
+              <span className="block text-[13px] font-semibold tracking-tight text-ink sm:text-base">
                 Islamabad Explore
               </span>
-              <span className="mt-0.5 block text-[11px] font-medium leading-snug text-ink-muted">
+              <span className="mt-0.5 hidden text-[11px] font-medium leading-snug text-ink-muted sm:block">
                 What&apos;s happening in Islamabad
               </span>
             </span>
