@@ -66,17 +66,17 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
             <div className="min-w-0 flex-1 text-center sm:text-left">
               <p
                 id="koh-about-title"
-                className="font-display text-[1.35rem] font-semibold leading-snug tracking-[-0.02em] text-[#7dff9a] sm:text-[1.5rem]"
+                className="font-pixel text-[11px] uppercase leading-relaxed tracking-wide text-[#7dff9a] sm:text-[12px]"
               >
                 Islamabad Explore
               </p>
-              <p className="mt-1.5 font-display text-[0.8rem] italic leading-snug text-[#c8b48a]">
+              <p className="mt-2 font-pixel text-[9px] uppercase tracking-wider text-[#c8b48a]">
                 Level 1 · City unlocked
               </p>
             </div>
           </div>
 
-          <div className="koh-about-copy mt-4 space-y-3.5 font-display text-[0.95rem] leading-[1.55] text-[#f0e6c8] sm:text-[1.02rem]">
+          <div className="koh-about-copy mt-4 space-y-3 font-pixel text-[9px] uppercase leading-[1.9] tracking-wide text-[#f0e6c8] sm:text-[10px]">
             <p>
               Hey. I&apos;m Koh. I walk these sectors so you don&apos;t have to
               guess where the good stuff is.
@@ -94,8 +94,8 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
               Tap a pin. Filter the chaos. Drop your own find. Margalla&apos;s
               that way. Always.
             </p>
-            <p className="font-sans text-xs tracking-wide text-[#7dff9a]">
-              Press X to close, or click outside.
+            <p className="text-[#7dff9a]">
+              &gt; Press X to close. Or just click the fog outside.
               <span className="koh-about-cursor" aria-hidden>
                 _
               </span>
@@ -105,7 +105,7 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="koh-about-btn mt-5 w-full"
+            className="koh-about-btn mt-5 w-full font-pixel uppercase"
           >
             Got it
           </button>

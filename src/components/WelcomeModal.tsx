@@ -85,43 +85,35 @@ export function WelcomeModal({ open, onClose, onAddSpot }: WelcomeModalProps) {
             <div className="min-w-0 flex-1 text-center sm:text-left">
               <p
                 id="welcome-title"
-                className="font-display text-[1.35rem] font-semibold leading-snug tracking-[-0.02em] text-[#7dff9a] sm:text-[1.5rem]"
+                className="font-pixel text-[11px] uppercase leading-relaxed tracking-wide text-[#7dff9a] sm:text-[12px]"
               >
                 Community map
               </p>
-              <p className="mt-1.5 font-display text-[0.8rem] italic leading-snug text-[#c8b48a]">
-                Built by the city, for the city
+              <p className="mt-2 font-pixel text-[9px] uppercase tracking-wider text-[#c8b48a]">
+                Built by the city · for the city
               </p>
             </div>
           </div>
 
-          <div className="koh-about-copy mt-4 space-y-3.5 font-display text-[0.95rem] leading-[1.55] text-[#f0e6c8] sm:text-[1.02rem]">
+          <div className="koh-about-copy mt-4 space-y-3 font-pixel text-[9px] uppercase leading-[1.9] tracking-wide text-[#f0e6c8] sm:text-[10px]">
             <p>
               This is a community-driven map of Islamabad. Know a good spot?
               Something happening soon? Drop it on the map.
             </p>
             <p>
-              <span className="font-semibold not-italic text-[#7dff9a]">
-                1.
-              </span>{" "}
-              Add spots you know — cafés, trails, hangouts, hidden gems.
+              <span className="text-[#7dff9a]">1.</span> Add spots you know —
+              cafés, trails, hangouts, hidden gems.
             </p>
             <p>
-              <span className="font-semibold not-italic text-[#ff9a4a]">
-                2.
-              </span>{" "}
-              Share upcoming events — gigs, markets, meetups, anything worth
-              showing up for.
+              <span className="text-[#ff9a4a]">2.</span> Share upcoming events —
+              gigs, markets, meetups, anything worth showing up for.
             </p>
             <p>
-              <span className="font-semibold not-italic text-[#c8b48a]">
-                3.
-              </span>{" "}
-              New pins show as pending until someone verifies them — then they
-              go live for everyone.
+              <span className="text-[#c8b48a]">3.</span> New pins show as pending
+              until someone verifies them — then they go live for everyone.
             </p>
-            <p className="font-sans text-xs tracking-wide text-[#7dff9a]">
-              Press X to close, or click outside.
+            <p className="text-[#7dff9a]">
+              &gt; Press X to close. Or click the fog.
               <span className="koh-about-cursor" aria-hidden>
                 _
               </span>
@@ -135,14 +127,14 @@ export function WelcomeModal({ open, onClose, onAddSpot }: WelcomeModalProps) {
                 onClose();
                 onAddSpot();
               }}
-              className="koh-about-btn flex-1"
+              className="koh-about-btn flex-1 font-pixel uppercase"
             >
               Add a spot
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="koh-about-btn koh-about-btn-secondary flex-1"
+              className="koh-about-btn koh-about-btn-secondary flex-1 font-pixel uppercase"
             >
               Explore map
             </button>
