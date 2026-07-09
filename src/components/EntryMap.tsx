@@ -37,7 +37,6 @@ interface EntryMapProps {
   draftPin?: { lat: number; lng: number } | null;
   onDraftPinChange?: (lat: number, lng: number) => void;
   onCancelPinMode?: () => void;
-  onSuggest?: () => void;
   /** Open suggest form with a pin already dropped at these coords */
   onSuggestAt?: (lat: number, lng: number) => void;
   /** Start one-by-one pin drop after splash */
@@ -239,7 +238,6 @@ export function EntryMap({
   draftPin = null,
   onDraftPinChange,
   onCancelPinMode,
-  onSuggest,
   onSuggestAt,
   animatePins = false,
 }: EntryMapProps) {
@@ -622,17 +620,6 @@ export function EntryMap({
 
       {!pinMode && (
         <ViewerTicker className="absolute bottom-14 left-3 z-20 lg:bottom-4" />
-      )}
-
-      {!pinMode && onSuggest && (
-        <button
-          type="button"
-          onClick={onSuggest}
-          className="btn-primary absolute bottom-[7.5rem] right-3 z-20 rounded-full border px-4 py-2.5 text-sm font-semibold shadow-lg sm:bottom-auto sm:right-14 sm:top-3"
-        >
-          <span className="sm:hidden">Add</span>
-          <span className="hidden sm:inline">Add an Event/Spot</span>
-        </button>
       )}
 
       {pinMode && (

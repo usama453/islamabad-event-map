@@ -308,7 +308,6 @@ export function HomePage() {
               setPinMode(false);
               setExitPinModeSignal((n) => n + 1);
             }}
-            onSuggest={!showSubmit ? openSuggest : undefined}
             onSuggestAt={!showSubmit ? openSuggestAt : undefined}
             animatePins={introReady}
           />
@@ -318,7 +317,7 @@ export function HomePage() {
           onClick={() => setMapExpanded((v) => !v)}
           aria-expanded={mapExpanded}
           aria-label={mapExpanded ? "Collapse map" : "Expand map"}
-          className="absolute bottom-3 left-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/95 px-3 py-2 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm transition hover:bg-wash lg:hidden dark:bg-surface-raised/95"
+          className="map-expand-btn btn-secondary absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 py-2 lg:hidden"
         >
           {mapExpanded ? (
             <>

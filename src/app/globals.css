@@ -2097,3 +2097,12 @@ body.koh-crt .koh-loader-ring {
   box-shadow: none;
 }
 
+body.koh-crt .map-expand-btn {
+  border-radius: 0 !important;
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-size: 0.7rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
