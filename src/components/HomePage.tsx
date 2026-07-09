@@ -199,7 +199,7 @@ export function HomePage() {
       <div className="flex h-dvh flex-col lg:flex-row">
       {/* Left: brand + list — collapses on mobile when map is expanded */}
       <section
-        className={`sidebar-pane relative min-w-0 flex-col overflow-hidden bg-surface transition-[flex-grow,min-height] duration-300 ease-out lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none ${
+        className={`relative min-w-0 flex-col overflow-hidden bg-surface transition-[flex-grow,min-height] duration-300 ease-out lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none ${
           mapExpanded
             ? "hidden lg:flex"
             : "flex min-h-0 flex-[1.15]"
@@ -317,7 +317,7 @@ export function HomePage() {
           onClick={() => setMapExpanded((v) => !v)}
           aria-expanded={mapExpanded}
           aria-label={mapExpanded ? "Collapse map" : "Expand map"}
-          className="map-expand-btn btn-secondary absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 py-2 lg:hidden"
+          className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/95 px-3 py-2 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm transition hover:bg-wash lg:hidden dark:bg-surface-raised/95"
         >
           {mapExpanded ? (
             <>

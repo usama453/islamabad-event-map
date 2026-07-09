@@ -11,7 +11,7 @@ function MapLogo({ className = "" }: { className?: string }) {
       fill="none"
       aria-hidden
     >
-      <rect width="40" height="40" rx="4" fill="var(--blue)" />
+      <rect width="40" height="40" rx="12" fill="var(--blue)" />
       <path
         d="M10 14.5 17 12l6.5 2.5L30 12.2v15.3L23.5 30 17 27.5 10 30V14.5Z"
         stroke="white"
@@ -46,10 +46,10 @@ export function Header({ variant = "bar" }: HeaderProps) {
           >
             <MapLogo className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
             <span className="leading-tight">
-              <span className="brand-title block text-[15px] font-semibold tracking-tight text-ink sm:text-base">
+              <span className="block text-[15px] font-semibold tracking-tight text-ink sm:text-base">
                 Islamabad Explore
               </span>
-              <span className="brand-tagline mt-0.5 block text-[11px] font-medium leading-snug text-ink-muted">
+              <span className="mt-0.5 block text-[11px] font-medium leading-snug text-ink-muted">
                 What&apos;s happening in Islamabad
               </span>
             </span>
@@ -72,10 +72,10 @@ export function Header({ variant = "bar" }: HeaderProps) {
         >
           <MapLogo className="h-10 w-10 shrink-0" />
           <span className="leading-tight">
-            <span className="brand-title block text-base font-semibold tracking-tight text-ink sm:text-lg">
+            <span className="block text-base font-semibold tracking-tight text-ink sm:text-lg">
               Islamabad Explore
             </span>
-            <span className="brand-tagline mt-0.5 block text-xs font-medium text-ink-muted">
+            <span className="mt-0.5 block text-xs font-medium text-ink-muted">
               What&apos;s happening in Islamabad
             </span>
           </span>

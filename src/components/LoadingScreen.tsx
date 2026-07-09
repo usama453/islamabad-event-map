@@ -76,10 +76,10 @@ export function LoadingScreen({
           <KohMascot size={80} mood="run" />
         </div>
         <div className="text-center">
-          <p className="brand-title text-lg font-semibold tracking-tight text-ink">
+          <p className="text-lg font-semibold tracking-tight text-ink">
             Islamabad Explore
           </p>
-          <p className="brand-tagline mt-1 text-sm text-ink-muted">{label}</p>
+          <p className="mt-1 text-sm text-ink-muted">{label}</p>
         </div>
         <div className="loader-bar" aria-hidden>
           <span />

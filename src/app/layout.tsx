@@ -46,7 +46,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body
-        className={`${sans.variable} ${display.variable} ${pixel.variable} koh-crt bg-[var(--surface)] font-sans text-[var(--ink)] antialiased`}
+        className={`${sans.variable} ${display.variable} ${pixel.variable} bg-[var(--surface)] font-sans text-[var(--ink)] antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
       </body>
