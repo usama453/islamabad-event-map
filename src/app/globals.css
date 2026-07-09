@@ -1550,7 +1550,7 @@ body {
 }
 
 .koh-about-copy p {
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.65);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
 }
 
 .koh-about-cursor {
@@ -1563,11 +1563,11 @@ body {
   border: 3px solid #f4e8c8;
   background: linear-gradient(180deg, #3d7aff 0%, #0051ff 55%, #0033b0 100%);
   color: #fff;
-  padding: 0.7rem 1rem;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 0.875rem;
+  padding: 0.72rem 1rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1rem;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
   box-shadow: 3px 3px 0 #1a1208;
   transition: transform 0.08s ease, box-shadow 0.08s ease;
 }

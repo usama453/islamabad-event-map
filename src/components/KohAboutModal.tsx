@@ -66,17 +66,17 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
             <div className="min-w-0 flex-1 text-center sm:text-left">
               <p
                 id="koh-about-title"
-                className="font-display text-lg font-semibold tracking-tight text-[#7dff9a] sm:text-xl"
+                className="font-display text-[1.35rem] font-semibold leading-snug tracking-[-0.02em] text-[#7dff9a] sm:text-[1.5rem]"
               >
                 Islamabad Explore
               </p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-[#c8b48a]">
+              <p className="mt-1.5 font-display text-[0.8rem] italic leading-snug text-[#c8b48a]">
                 Level 1 · City unlocked
               </p>
             </div>
           </div>
 
-          <div className="koh-about-copy mt-4 space-y-3 text-sm leading-relaxed text-[#f0e6c8]">
+          <div className="koh-about-copy mt-4 space-y-3.5 font-display text-[0.95rem] leading-[1.55] text-[#f0e6c8] sm:text-[1.02rem]">
             <p>
               Hey. I&apos;m Koh. I walk these sectors so you don&apos;t have to
               guess where the good stuff is.
@@ -94,7 +94,7 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
               Tap a pin. Filter the chaos. Drop your own find. Margalla&apos;s
               that way. Always.
             </p>
-            <p className="text-xs text-[#7dff9a]">
+            <p className="font-sans text-xs tracking-wide text-[#7dff9a]">
               Press X to close, or click outside.
               <span className="koh-about-cursor" aria-hidden>
                 _
