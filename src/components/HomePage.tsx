@@ -37,6 +37,7 @@ export function HomePage() {
   const [pinMode, setPinMode] = useState(false);
   const [exitPinModeSignal, setExitPinModeSignal] = useState(0);
   const [introReady, setIntroReady] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const [draftPin, setDraftPin] = useState<{ lat: number; lng: number } | null>(
     null
   );
@@ -69,6 +70,9 @@ export function HomePage() {
     if (!showSubmit) {
       setPinMode(false);
       setDraftPin(null);
+    } else {
+      // Suggest form lives in the list pane — don't leave it behind an expanded map
+      setMapExpanded(false);
     }
   }, [showSubmit]);
 
@@ -169,8 +173,14 @@ export function HomePage() {
   return (
     <AppSplash ready={!loading} onIntroDone={handleIntroDone}>
       <div className="flex h-dvh flex-col lg:flex-row">
-      {/* Left: brand + list */}
-      <section className="relative flex min-h-0 min-w-0 flex-[1.15] flex-col overflow-hidden bg-surface lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none">
+      {/* Left: brand + list — collapses on mobile when map is expanded */}
+      <section
+        className={`relative min-w-0 flex-col overflow-hidden bg-surface transition-[flex-grow,min-height] duration-300 ease-out lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none ${
+          mapExpanded
+            ? "hidden lg:flex"
+            : "flex min-h-0 flex-[1.15]"
+        }`}
+      >
         <Header variant="sidebar" />
 
         {showSubmit ? (
@@ -253,8 +263,14 @@ export function HomePage() {
         )}
       </section>
 
-      {/* Right: full-viewport map on desktop; filters float on top */}
-      <aside className="relative h-[38vh] max-h-[340px] shrink-0 border-t border-line lg:h-full lg:max-h-none lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0">
+      {/* Right: full-viewport map on desktop; expandable on mobile */}
+      <aside
+        className={`relative shrink-0 border-t border-line transition-[height,max-height,flex-grow] duration-300 ease-out lg:h-full lg:max-h-none lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0 ${
+          mapExpanded
+            ? "h-dvh max-h-none flex-1 border-t-0"
+            : "h-[38vh] max-h-[340px]"
+        }`}
+      >
         <div className="absolute inset-0">
           <EntryMap
             entries={mapEntries}
@@ -273,6 +289,25 @@ export function HomePage() {
             animatePins={introReady}
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setMapExpanded((v) => !v)}
+          aria-expanded={mapExpanded}
+          aria-label={mapExpanded ? "Collapse map" : "Expand map"}
+          className="absolute bottom-3 left-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/95 px-3 py-2 text-xs font-semibold text-ink shadow-sm backdrop-blur-sm transition hover:bg-wash lg:hidden dark:bg-surface-raised/95"
+        >
+          {mapExpanded ? (
+            <>
+              <CollapseMapIcon />
+              Show list
+            </>
+          ) : (
+            <>
+              <ExpandMapIcon />
+              Expand map
+            </>
+          )}
+        </button>
         {!showSubmit && (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-3 pt-3">
             <div className="pointer-events-auto w-full max-w-[520px]">
@@ -295,5 +330,43 @@ export function HomePage() {
       </aside>
       </div>
     </AppSplash>
+  );
+}
+
+function ExpandMapIcon() {
+  return (
+    <svg
+      className="h-3.5 w-3.5"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CollapseMapIcon() {
+  return (
+    <svg
+      className="h-3.5 w-3.5"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

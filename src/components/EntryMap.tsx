@@ -257,9 +257,24 @@ export function EntryMap({
     () => new Set()
   );
   const revealGen = useRef(0);
+  const shellRef = useRef<HTMLDivElement>(null);
 
   const mappableEntries = entries.filter(hasCoordinates);
   const mappableIdsKey = mappableEntries.map((e) => e.id).join("|");
+
+  // Keep Mapbox in sync when the mobile expand/collapse changes the shell size
+  useEffect(() => {
+    if (!mapReady) return;
+    const shell = shellRef.current;
+    const map = mapRef.current?.getMap();
+    if (!shell || !map) return;
+
+    const resize = () => map.resize();
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(shell);
+    return () => ro.disconnect();
+  }, [mapReady]);
 
   // Drop every pin in one-by-one whenever the visible set changes
   // (page load, All / Events / Places, category filters, etc.)
@@ -396,7 +411,7 @@ export function EntryMap({
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={shellRef} className="relative h-full w-full">
       <Map
         ref={mapRef}
         mapboxAccessToken={MAPBOX_TOKEN}
