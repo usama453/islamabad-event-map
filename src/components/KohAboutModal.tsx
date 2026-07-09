@@ -91,9 +91,8 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
               for a human admin to say &ldquo;yep, real.&rdquo;
             </p>
             <p>
-              Tap a pin. Filter the chaos. Drop your own find. Hit Stay updated
-              if you want the next wave in your inbox. Margalla&apos;s that way.
-              Always.
+              Tap a pin. Filter the chaos. Drop your own find. Margalla&apos;s
+              that way. Always.
             </p>
             <p className="text-[#7dff9a]">
               &gt; Press X to close. Or just click the fog outside.

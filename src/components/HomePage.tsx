@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FiltersBar } from "@/components/FiltersBar";
 import { EntryList } from "@/components/EntryList";
 import { Header } from "@/components/Header";
-import { StayUpdated } from "@/components/StayUpdated";
 import { SubmitForm } from "@/components/SubmitForm";
 import { AppSplash, QuietLoader } from "@/components/LoadingScreen";
 import type { Category, DateFilter, ViewFilter } from "@/lib/constants";
@@ -290,13 +289,6 @@ export function HomePage() {
                 eventCount={eventCount}
                 placeCount={placeCount}
               />
-            </div>
-          </div>
-        )}
-        {!showSubmit && (
-          <div className="pointer-events-none absolute bottom-3 right-3 z-30 w-[min(calc(100%-1.5rem),280px)]">
-            <div className="pointer-events-auto">
-              <StayUpdated />
             </div>
           </div>
         )}
