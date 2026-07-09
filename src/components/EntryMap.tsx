@@ -621,7 +621,7 @@ export function EntryMap({
       </Map>
 
       {!pinMode && (
-        <ViewerTicker className="absolute left-3 top-[4.25rem] z-20 sm:top-3" />
+        <ViewerTicker className="absolute bottom-14 left-3 z-20 lg:bottom-4" />
       )}
 
       {!pinMode && onSuggest && (

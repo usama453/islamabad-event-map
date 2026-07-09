@@ -333,8 +333,8 @@ export function HomePage() {
           )}
         </button>
         {!showSubmit && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-3 pt-3">
-            <div className="pointer-events-auto w-full max-w-[520px]">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-3 pt-3 sm:px-4">
+            <div className="pointer-events-auto w-full max-w-[min(100%,480px)]">
               <FiltersBar
                 floating
                 viewFilter={viewFilter}
