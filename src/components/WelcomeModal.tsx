@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { KohMascot } from "./KohMascot";
 
 const STORAGE_KEY = "isb-explore-welcome-seen";
 
@@ -45,7 +46,7 @@ export function WelcomeModal({ open, onClose, onAddSpot }: WelcomeModalProps) {
 
   return (
     <div
-      className="welcome-overlay fixed inset-0 z-[75] flex items-end justify-center p-4 sm:items-center"
+      className="koh-about-overlay fixed inset-0 z-[75] flex items-center justify-center p-4"
       role="presentation"
       onClick={onClose}
     >
@@ -53,122 +54,89 @@ export function WelcomeModal({ open, onClose, onAddSpot }: WelcomeModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-title"
-        className="welcome-panel relative w-full max-w-[420px] overflow-hidden rounded-2xl border border-line bg-surface shadow-xl outline-none"
+        className="koh-about-window relative w-full max-w-[440px] outline-none"
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="welcome-hero relative h-28 overflow-hidden sm:h-32"
-          aria-hidden
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_20%_0%,color-mix(in_srgb,var(--blue)_55%,transparent),transparent_55%),radial-gradient(90%_70%_at_90%_30%,color-mix(in_srgb,var(--orange)_45%,transparent),transparent_50%),linear-gradient(160deg,var(--wash),var(--surface))]" />
-          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface to-transparent" />
-          <div className="absolute left-5 top-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--blue)] shadow-md">
-            <svg viewBox="0 0 40 40" className="h-7 w-7" fill="none">
-              <path
-                d="M10 14.5 17 12l6.5 2.5L30 12.2v15.3L23.5 30 17 27.5 10 30V14.5Z"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M17 12v15.5M23.5 14.5V30"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <circle cx="20" cy="21" r="2.6" fill="white" />
-            </svg>
-          </div>
+        <div className="koh-about-titlebar">
+          <span className="koh-about-dots" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className="font-pixel text-[10px] tracking-wide text-[#f4e8c8] sm:text-[11px]">
+            WELCOME.EXE
+          </span>
           <button
             type="button"
             onClick={onClose}
+            className="koh-about-x font-pixel"
             aria-label="Close"
-            className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-surface/90 text-base leading-none text-ink shadow-sm backdrop-blur-sm transition hover:bg-wash"
           >
-            ×
+            X
           </button>
         </div>
 
-        <div className="px-5 pb-5 pt-1 sm:px-6 sm:pb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--blue)]">
-            Islamabad Explore
-          </p>
-          <h2
-            id="welcome-title"
-            className="mt-1 font-display text-2xl font-semibold tracking-tight text-ink sm:text-[1.65rem]"
-          >
-            Built by the city, for the city
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-            This is a community-driven map of events and spots around Islamabad.
-            If you know a good place — or something happening soon — add it.
-          </p>
+        <div className="koh-about-body">
+          <div className="koh-about-scanlines" aria-hidden />
+          <div className="relative flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+            <div className="koh-about-sprite shrink-0">
+              <KohMascot size={72} mood="wave" label="Koh" />
+            </div>
+            <div className="min-w-0 flex-1 text-center sm:text-left">
+              <p
+                id="welcome-title"
+                className="font-pixel text-[11px] leading-relaxed text-[#7dff9a] sm:text-[12px]"
+              >
+                COMMUNITY MAP
+              </p>
+              <p className="mt-1 font-pixel text-[9px] uppercase tracking-wider text-[#c8b48a]">
+                Built by the city · for the city
+              </p>
+            </div>
+          </div>
 
-          <ul className="mt-4 space-y-2.5 text-sm text-ink">
-            <li className="flex gap-2.5">
-              <span
-                className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--blue-soft)] text-[11px] font-bold text-[var(--blue)]"
-                aria-hidden
-              >
-                1
+          <div className="koh-about-copy mt-4 space-y-3 font-pixel text-[9px] leading-[1.85] text-[#f0e6c8] sm:text-[10px]">
+            <p>
+              This is a community-driven map of Islamabad. Know a good spot?
+              Something happening soon? Drop it on the map.
+            </p>
+            <p>
+              <span className="text-[#7dff9a]">1.</span> Add spots you know —
+              cafés, trails, hangouts, hidden gems.
+            </p>
+            <p>
+              <span className="text-[#ff9a4a]">2.</span> Share upcoming events —
+              gigs, markets, meetups, anything worth showing up for.
+            </p>
+            <p>
+              <span className="text-[#c8b48a]">3.</span> New pins show as pending
+              until someone verifies them — then they go live for everyone.
+            </p>
+            <p className="text-[#7dff9a]">
+              &gt; Press X to close. Or click the fog.
+              <span className="koh-about-cursor" aria-hidden>
+                _
               </span>
-              <span>
-                <span className="font-semibold">Add spots you know</span>
-                <span className="text-ink-muted">
-                  {" "}
-                  — cafés, trails, hangouts, hidden gems.
-                </span>
-              </span>
-            </li>
-            <li className="flex gap-2.5">
-              <span
-                className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--orange-soft)] text-[11px] font-bold text-[var(--orange)]"
-                aria-hidden
-              >
-                2
-              </span>
-              <span>
-                <span className="font-semibold">Share upcoming events</span>
-                <span className="text-ink-muted">
-                  {" "}
-                  — gigs, markets, meetups, anything worth showing up for.
-                </span>
-              </span>
-            </li>
-            <li className="flex gap-2.5">
-              <span
-                className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-wash text-[11px] font-bold text-ink-muted"
-                aria-hidden
-              >
-                3
-              </span>
-              <span>
-                <span className="font-semibold">New pins show as pending</span>
-                <span className="text-ink-muted">
-                  {" "}
-                  until someone verifies them — then they go live for everyone.
-                </span>
-              </span>
-            </li>
-          </ul>
+            </p>
+          </div>
 
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
+          <div className="relative mt-5 flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
               onClick={() => {
                 onClose();
                 onAddSpot();
               }}
-              className="btn-primary flex-1 rounded-full border px-4 py-2.5 text-sm font-semibold"
+              className="koh-about-btn flex-1 font-pixel"
             >
-              Add a spot or event
+              ADD A SPOT
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-full border border-line-strong bg-surface px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-wash"
+              className="koh-about-btn koh-about-btn-secondary flex-1 font-pixel"
             >
-              Explore the map
+              EXPLORE MAP
             </button>
           </div>
         </div>
