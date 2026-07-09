@@ -1771,26 +1771,6 @@ body.koh-crt legend {
   image-rendering: pixelated;
 }
 
-body.koh-crt::before {
-  content: "";
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 2px,
-    rgba(0, 0, 0, 0.08) 2px,
-    rgba(0, 0, 0, 0.08) 3px
-  );
-  opacity: 0.22;
-}
-
-html.dark body.koh-crt::before {
-  opacity: 0.35;
-}
-
 body.koh-crt .brand-title {
   font-family: var(--font-pixel), monospace;
   font-size: 10px !important;
@@ -2079,9 +2059,3 @@ body.koh-crt .koh-loader-ring {
   box-shadow: 3px 3px 0 var(--crt-shadow);
 }
 
-/* Soften scanlines for reduced motion / keep map readable */
-@media (prefers-reduced-motion: reduce) {
-  body.koh-crt::before {
-    display: none;
-  }
-}
