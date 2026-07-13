@@ -16,6 +16,8 @@ export interface Entry {
   contactPhone?: string;
   eventDate?: string;
   eventEndDate?: string;
+  /** User-uploaded Airtable attachment URLs (preferred over Unsplash fallback) */
+  imageUrls?: string[];
   status: EntryStatus;
   createdTime: string;
 }
@@ -33,4 +35,26 @@ export interface CreateEntryInput {
   contactPhone?: string;
   eventDate?: string;
   eventEndDate?: string;
+}
+
+export interface PhotoUpload {
+  filename: string;
+  contentType: string;
+  data: Buffer;
+}
+
+export interface Comment {
+  id: string;
+  entryId: string;
+  body: string;
+  authorName: string;
+  status: EntryStatus;
+  createdTime: string;
+}
+
+export interface CreateCommentInput {
+  entryId: string;
+  body: string;
+  /** Optional — server assigns a random username when blank */
+  authorName?: string;
 }

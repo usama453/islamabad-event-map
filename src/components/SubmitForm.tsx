@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
@@ -9,6 +9,15 @@ import {
 } from "@/lib/constants";
 
 type LocationMode = "map" | "text" | "tbd";
+
+const MAX_PHOTOS = 3;
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+
+type PhotoDraft = {
+  id: string;
+  file: File;
+  previewUrl: string;
+};
 
 const fieldClass =
   "w-full rounded-xl border border-line-strong bg-surface px-3 py-2.5 text-sm text-ink outline-none transition focus:border-[var(--ring)]";
@@ -23,6 +32,8 @@ const segBtn = (active: boolean) =>
 interface SubmitFormProps {
   onSuccess?: () => void;
   defaultType?: EntryType;
+  /** Hide the Event/Spot toggle and keep defaultType */
+  lockType?: boolean;
   compact?: boolean;
   /** Controlled pin from the main map (when provided) */
   lat?: number;
@@ -36,6 +47,7 @@ interface SubmitFormProps {
 export function SubmitForm({
   onSuccess,
   defaultType = "event",
+  lockType = false,
   compact = false,
   lat: controlledLat,
   lng: controlledLng,
@@ -56,10 +68,13 @@ export function SubmitForm({
   const [eventEndDate, setEventEndDate] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [photos, setPhotos] = useState<PhotoDraft[]>([]);
+  const [photoWarning, setPhotoWarning] = useState<string | null>(null);
   const [honeypot, setHoneypot] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const usesMainMap = Boolean(onLocationChange);
   const lat = usesMainMap ? controlledLat : internalLat;
@@ -102,6 +117,59 @@ export function SubmitForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exitPinModeSignal]);
 
+  const clearPhotos = (list: PhotoDraft[]) => {
+    for (const photo of list) URL.revokeObjectURL(photo.previewUrl);
+  };
+
+  useEffect(() => {
+    return () => clearPhotos(photos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const addPhotos = (files: FileList | null) => {
+    if (!files?.length) return;
+    setError(null);
+
+    const incoming = Array.from(files);
+    const next: PhotoDraft[] = [];
+    for (const file of incoming) {
+      if (!file.type.startsWith("image/")) {
+        setError("Photos must be image files (JPEG, PNG, WebP, or GIF)");
+        continue;
+      }
+      if (file.size > MAX_PHOTO_BYTES) {
+        setError("Each photo must be under 2 MB");
+        continue;
+      }
+      next.push({
+        id: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
+
+    setPhotos((prev) => {
+      const merged = [...prev, ...next].slice(0, MAX_PHOTOS);
+      for (const draft of next) {
+        if (!merged.includes(draft)) URL.revokeObjectURL(draft.previewUrl);
+      }
+      if (prev.length + next.length > MAX_PHOTOS) {
+        setError(`You can upload up to ${MAX_PHOTOS} photos`);
+      }
+      return merged;
+    });
+
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  };
+
+  const removePhoto = (id: string) => {
+    setPhotos((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  };
+
   const handleTypeChange = (next: EntryType) => {
     setType(next);
     if (next === "place" && locationMode === "tbd") {
@@ -111,6 +179,7 @@ export function SubmitForm({
 
   const resetForm = () => {
     setSuccess(false);
+    setPhotoWarning(null);
     setTitle("");
     setOrganizerName("");
     setDescription("");
@@ -122,6 +191,10 @@ export function SubmitForm({
     setEventEndDate("");
     setSourceUrl("");
     setContactPhone("");
+    setPhotos((prev) => {
+      clearPhotos(prev);
+      return [];
+    });
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -168,33 +241,38 @@ export function SubmitForm({
     setSubmitting(true);
 
     try {
+      const form = new FormData();
+      form.set("type", type);
+      form.set("title", title.trim());
+      form.set("organizerName", organizerName.trim());
+      if (description.trim()) form.set("description", description.trim());
+      form.set("category", category);
+      if (locationMode === "map" && lat != null && lng != null) {
+        form.set("lat", String(lat));
+        form.set("lng", String(lng));
+      }
+      if (locationMode === "text") {
+        form.set("locationText", locationText.trim());
+      } else if (locationMode === "tbd") {
+        form.set("locationText", "Location not finalised yet");
+        form.set("locationTbd", "true");
+      } else if (locationMode === "map" && locationText.trim()) {
+        form.set("locationText", locationText.trim());
+      }
+      if (type === "event" && eventDate) form.set("eventDate", eventDate);
+      if (type === "event" && eventEndDate) {
+        form.set("eventEndDate", eventEndDate);
+      }
+      if (sourceUrl.trim()) form.set("sourceUrl", sourceUrl.trim());
+      if (contactPhone.trim()) form.set("contactPhone", contactPhone.trim());
+      form.set("website", honeypot);
+      for (const photo of photos) {
+        form.append("photos", photo.file);
+      }
+
       const res = await fetch("/api/entries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          title: title.trim(),
-          organizerName: organizerName.trim(),
-          description: description.trim() || undefined,
-          category,
-          lat: locationMode === "map" ? lat : undefined,
-          lng: locationMode === "map" ? lng : undefined,
-          locationText:
-            locationMode === "text"
-              ? locationText.trim()
-              : locationMode === "tbd"
-                ? "Location not finalised yet"
-                : locationMode === "map" && locationText.trim()
-                  ? locationText.trim()
-                  : undefined,
-          locationTbd: locationMode === "tbd",
-          eventDate: type === "event" ? eventDate : undefined,
-          eventEndDate:
-            type === "event" && eventEndDate ? eventEndDate : undefined,
-          sourceUrl: sourceUrl.trim() || undefined,
-          contactPhone: contactPhone.trim() || undefined,
-          website: honeypot,
-        }),
+        body: form,
       });
 
       const data = await res.json();
@@ -204,6 +282,9 @@ export function SubmitForm({
         return;
       }
 
+      setPhotoWarning(
+        typeof data.photoWarning === "string" ? data.photoWarning : null
+      );
       setSuccess(true);
       onSuccess?.();
     } catch {
@@ -217,17 +298,22 @@ export function SubmitForm({
     return (
       <div className="border border-line bg-wash px-4 py-6 text-center">
         <h2 className="font-display text-lg font-medium text-ink">
-          Submitted for review
+          {type === "event" ? "Event submitted" : "Spot submitted"}
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
           It&apos;s on the map now in amber as pending — an admin will verify it.
         </p>
+        {photoWarning && (
+          <p className="mt-3 rounded-lg border border-dashed border-[color-mix(in_srgb,var(--pending)_45%,transparent)] bg-[var(--pending-soft)] px-3 py-2 text-left text-xs leading-relaxed text-[var(--pending-deep)]">
+            {photoWarning}
+          </p>
+        )}
         <button
           type="button"
           onClick={resetForm}
           className="mt-5 text-sm font-medium text-ink underline underline-offset-4"
         >
-          Submit another
+          {type === "event" ? "Add another event" : "Add another spot"}
         </button>
       </div>
     );
@@ -251,25 +337,27 @@ export function SubmitForm({
         />
       </div>
 
-      <fieldset>
-        <legend className={labelClass}>Type</legend>
-        <div className={segment}>
-          <button
-            type="button"
-            onClick={() => handleTypeChange("event")}
-            className={segBtn(type === "event")}
-          >
-            Event
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTypeChange("place")}
-            className={segBtn(type === "place")}
-          >
-            Place
-          </button>
-        </div>
-      </fieldset>
+      {!lockType && (
+        <fieldset>
+          <legend className={labelClass}>Type</legend>
+          <div className={segment}>
+            <button
+              type="button"
+              onClick={() => handleTypeChange("event")}
+              className={segBtn(type === "event")}
+            >
+              Event
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTypeChange("place")}
+              className={segBtn(type === "place")}
+            >
+              Spot
+            </button>
+          </div>
+        </fieldset>
+      )}
 
       <div>
         <label htmlFor="title" className={labelClass}>
@@ -480,6 +568,59 @@ export function SubmitForm({
           </div>
         </div>
       )}
+
+      <div>
+        <label className={labelClass}>
+          Photos{" "}
+          <span className="font-normal text-ink-muted">
+            (optional, up to {MAX_PHOTOS})
+          </span>
+        </label>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          multiple
+          className="sr-only"
+          onChange={(e) => addPhotos(e.target.files)}
+        />
+        <div className="flex flex-wrap gap-2">
+          {photos.map((photo) => (
+            <div
+              key={photo.id}
+              className="relative h-20 w-20 overflow-hidden rounded-xl border border-line"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.previewUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removePhoto(photo.id)}
+                className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-[11px] font-bold text-white"
+                aria-label="Remove photo"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {photos.length < MAX_PHOTOS && (
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface text-[11px] font-semibold text-ink-muted transition hover:border-ink-faint hover:text-ink"
+            >
+              <span className="text-lg leading-none">+</span>
+              Add
+            </button>
+          )}
+        </div>
+        <p className="mt-1.5 text-[11px] text-ink-muted">
+          JPEG, PNG, WebP, or GIF · max 2 MB each
+        </p>
+      </div>
 
       <div>
         <label htmlFor="contactPhone" className={labelClass}>

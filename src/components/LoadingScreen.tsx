@@ -79,6 +79,9 @@ export function LoadingScreen({
           <p className="text-lg font-semibold tracking-tight text-ink">
             Islamabad Explore
           </p>
+          <p className="mt-0.5 text-xs font-medium text-ink-muted">
+            Community map of events &amp; spots
+          </p>
           <p className="mt-1 text-sm text-ink-muted">{label}</p>
         </div>
         <div className="loader-bar" aria-hidden>

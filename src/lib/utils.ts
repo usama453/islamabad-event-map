@@ -14,16 +14,23 @@ function hashString(value: string): number {
   return hash;
 }
 
-/** Stable thumbnail per listing — place overrides first, else category pool */
+/** Stable thumbnail per listing — uploads first, then place overrides, else category pool */
 export function getEntryImage(entry: Entry): string {
+  return getEntryImages(entry)[0]!;
+}
+
+/** All photos for a listing (uploads), or a single fallback image */
+export function getEntryImages(entry: Entry): string[] {
+  if (entry.imageUrls?.length) return entry.imageUrls;
+
   const title = entry.title.toLowerCase();
   for (const place of PLACE_IMAGES) {
-    if (title.includes(place.match)) return place.url;
+    if (title.includes(place.match)) return [place.url];
   }
 
   const pool = CATEGORY_IMAGE_POOLS[entry.category];
   const index = hashString(entry.id || entry.title) % pool.length;
-  return pool[index];
+  return [pool[index]!];
 }
 
 export function hasCoordinates(entry: Entry): boolean {

@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { Category, DateFilter, ViewFilter } from "@/lib/constants";
 import { CATEGORY_LABELS, DATE_FILTER_LABELS } from "@/lib/constants";
+import { CategoryIcon, categoryColor } from "@/components/CategoryIcon";
 
 type PanelPhase = "closed" | "open" | "closing";
 
@@ -14,7 +15,6 @@ interface FiltersBarProps {
   dateFilter: DateFilter;
   onDateFilterChange: (filter: DateFilter) => void;
   availableCategories: Category[];
-  allCount?: number;
   eventCount?: number;
   placeCount?: number;
   /** Float over the map instead of sitting in the sidebar */
@@ -29,7 +29,6 @@ export function FiltersBar({
   dateFilter,
   onDateFilterChange,
   availableCategories,
-  allCount = 0,
   eventCount = 0,
   placeCount = 0,
   floating = false,
@@ -60,20 +59,15 @@ export function FiltersBar({
   };
 
   const toggleCategory = (category: Category) => {
-    if (selectedCategories.includes(category)) {
-      onCategoriesChange(selectedCategories.filter((c) => c !== category));
-    } else {
-      onCategoriesChange([...selectedCategories, category]);
-    }
+    onCategoriesChange([category]);
   };
 
   const segments: { id: ViewFilter; label: string; count: number }[] = [
-    { id: "all", label: "All", count: allCount },
-    { id: "event", label: "Events", count: eventCount },
     { id: "place", label: "Spots", count: placeCount },
+    { id: "event", label: "Events", count: eventCount },
   ];
 
-  const showDate = viewFilter === "event" || viewFilter === "all";
+  const showDate = viewFilter === "event";
   const activeFilterCount =
     selectedCategories.length + (showDate && dateFilter !== "upcoming" ? 1 : 0);
   const hasFilters = activeFilterCount > 0;
@@ -121,24 +115,28 @@ export function FiltersBar({
     <div
       className={
         floating
-          ? "relative w-full max-w-[520px]"
+          ? "relative w-fit max-w-full"
           : "relative border-b border-line bg-surface px-3 py-3 sm:px-4"
       }
     >
       <div
         className={
           floating
-            ? "flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1 shadow-lg backdrop-blur-sm dark:bg-surface-raised/95"
+            ? "flex w-fit max-w-full items-center gap-1.5 rounded-full border border-line bg-surface/95 p-1 shadow-lg backdrop-blur-sm dark:bg-surface-raised/95"
             : "flex items-center gap-2"
         }
       >
         <div
-          className="seg-track flex min-w-0 flex-1 gap-0.5 rounded-full p-0.5"
+          className="seg-track flex shrink-0 gap-0.5 rounded-full p-0.5"
           role="tablist"
           aria-label="Listing type"
         >
           {segments.map((seg) => {
             const active = viewFilter === seg.id;
+            const activeClass =
+              seg.id === "event"
+                ? "bg-[var(--orange)] text-white shadow-sm"
+                : "bg-[var(--blue)] text-white shadow-sm";
             return (
               <button
                 key={seg.id}
@@ -146,14 +144,14 @@ export function FiltersBar({
                 role="tab"
                 aria-selected={active}
                 onClick={() => onViewFilterChange(seg.id)}
-                className={`relative min-w-0 flex-1 rounded-full px-2 py-1.5 text-center text-sm font-semibold transition-colors ${
-                  active ? "seg-tab-active" : "seg-tab"
+                className={`relative rounded-full px-2.5 py-1.5 text-center text-sm font-semibold transition-colors sm:px-3 ${
+                  active ? activeClass : "seg-tab"
                 }`}
               >
                 {seg.label}
                 <span
                   className={`ml-1 tabular-nums ${
-                    active ? "text-ink-muted" : "text-ink-faint"
+                    active ? "text-white/80" : "text-ink-faint"
                   }`}
                 >
                   {seg.count}
@@ -168,25 +166,17 @@ export function FiltersBar({
           type="button"
           aria-expanded={open}
           aria-controls={panelId}
+          aria-label="Filters"
           onClick={togglePanel}
-          className={`relative shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+          className={`relative shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
             open || hasFilters || panelPhase === "closing"
               ? "btn-secondary-active"
               : "btn-secondary"
           }`}
         >
           <FilterIcon />
-          <span>Filters</span>
-          <span
-            className={`inline-block text-[10px] leading-none transition-transform duration-200 ${
-              open || panelVisible ? "rotate-180" : "rotate-0"
-            }`}
-            aria-hidden
-          >
-            ▾
-          </span>
           {hasFilters && (
-            <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--blue)] px-1 text-[11px] font-bold tabular-nums text-white">
+            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--blue)] px-1 text-[10px] font-bold tabular-nums text-white">
               {activeFilterCount}
             </span>
           )}
@@ -201,7 +191,7 @@ export function FiltersBar({
             panelVisible ? "filters-panel-open" : ""
           } ${
             floating
-              ? "absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border border-line-strong bg-surface p-3 shadow-lg"
+              ? "absolute left-1/2 top-[calc(100%+6px)] z-30 w-[min(92vw,320px)] -translate-x-1/2 rounded-xl border border-line-strong bg-surface p-3 shadow-lg"
               : "absolute left-2 right-2 top-[calc(100%-2px)] z-30 rounded-xl border border-line-strong bg-surface p-3 shadow-lg sm:left-3 sm:right-3"
           }`}
         >
@@ -249,12 +239,21 @@ export function FiltersBar({
                       key={category}
                       type="button"
                       onClick={() => toggleCategory(category)}
-                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                         selected
-                          ? "chip-selected"
+                          ? "border-transparent text-white"
                           : "border-line-strong text-ink-muted hover:border-ink-faint hover:text-ink"
                       }`}
+                      style={
+                        selected
+                          ? { backgroundColor: categoryColor(category) }
+                          : undefined
+                      }
                     >
+                      <CategoryIcon
+                        category={category}
+                        className="h-3.5 w-3.5"
+                      />
                       {CATEGORY_LABELS[category]}
                     </button>
                   );

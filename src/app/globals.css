@@ -2,15 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Scrollable panels without a visible scrollbar (Windows/Linux/macOS) */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 :root {
   --ink: #1f2421;
   --ink-muted: #5f6b66;
   --ink-faint: #9aa6a1;
-  --surface: #e1caa9;
-  --surface-raised: #ead6b8;
-  --wash: #d8bf9a;
-  --line: #cbb28e;
-  --line-strong: #b89a72;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --wash: #f4f4f2;
+  --line: #e6e6e2;
+  --line-strong: #d0d0cb;
   --orange: #d94a00;
   --orange-bright: #f05a00;
   --orange-deep: #a83600;
@@ -41,7 +53,7 @@
   --pending-bright: #c9960a;
   --pending-deep: #7a5a00;
   --pending-soft: #f5e8c4;
-  --map-panel: #e1caa9;
+  --map-panel: #ffffff;
 }
 
 .dark {
@@ -423,6 +435,13 @@
   color: #e8e6df;
 }
 
+/* Zoom +/- — desktop only; pinch works on mobile */
+@media (max-width: 1023px) {
+  .mapboxgl-ctrl-top-right .mapboxgl-ctrl-group {
+    display: none !important;
+  }
+}
+
 .dark .mapboxgl-ctrl-group {
   background: var(--surface-raised) !important;
   border: 1px solid var(--line-strong) !important;
@@ -497,6 +516,24 @@ body {
 .entry-map-popup .mapboxgl-popup-content {
   width: auto;
   max-width: min(360px, calc(100vw - 32px));
+  /* Grow with content; only clip/scroll when the viewport is too short */
+  max-height: none;
+  overflow: hidden;
+}
+
+@media (max-height: 640px) {
+  .entry-map-popup .mapboxgl-popup-content {
+    max-height: calc(100dvh - 72px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .entry-map-popup .mapboxgl-popup-content::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .mapboxgl-popup-close-button {

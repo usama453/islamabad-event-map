@@ -10,10 +10,14 @@ import {
   happeningSoonLabel,
   isEventHappeningSoon,
 } from "@/lib/utils";
+import { CategoryIcon, categoryColor } from "@/components/CategoryIcon";
 
 interface EntryCardProps {
   entry: Entry;
   isSelected: boolean;
+  isViewed?: boolean;
+  /** Strongly dulled when outside the focused categories */
+  isDimmed?: boolean;
   onClick: () => void;
 }
 
@@ -45,21 +49,13 @@ function EventIcon({ className = "" }: { className?: string }) {
   );
 }
 
-function PlaceIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 21s-6.5-5.4-6.5-10.2A6.5 6.5 0 0 1 12 4.3a6.5 6.5 0 0 1 6.5 6.5C18.5 15.6 12 21 12 21Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="11" r="2.25" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
-}
-
-export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
+export function EntryCard({
+  entry,
+  isSelected,
+  isViewed = false,
+  isDimmed = false,
+  onClick,
+}: EntryCardProps) {
   const isEvent = entry.type === "event";
   const schedule = formatEventSchedule(entry);
   const image = getEntryImage(entry);
@@ -67,6 +63,7 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
   const soonLabel = soon ? happeningSoonLabel(entry) : null;
   const isPending = entry.status === "pending";
   const markedBy = entryOrganizerName(entry);
+  const showViewed = isViewed && !isSelected && !isDimmed;
 
   return (
     <button
@@ -84,6 +81,12 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
             : isEvent
               ? "entry-card-event"
               : "entry-card-place"
+      } ${
+        isDimmed && !isSelected
+          ? "opacity-[0.28] saturate-[0.35]"
+          : showViewed
+            ? "opacity-55 saturate-[0.65]"
+            : ""
       }`}
     >
       <div className="relative h-[52px] w-[68px] shrink-0 overflow-hidden rounded-md bg-line sm:h-[80px] sm:w-[108px] sm:rounded-lg">
@@ -92,7 +95,7 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
           alt=""
           fill
           className={`object-cover transition duration-300 group-hover:scale-[1.03] ${
-            isPending ? "opacity-85 saturate-[0.7]" : ""
+            isPending || showViewed ? "opacity-85 saturate-[0.7]" : ""
           }`}
           sizes="108px"
         />
@@ -102,14 +105,22 @@ export function EntryCard({ entry, isSelected, onClick }: EntryCardProps) {
               ? "bg-[var(--pending)]"
               : isEvent
                 ? "bg-[var(--orange)]"
-                : "bg-[var(--blue)]"
+                : ""
           }`}
+          style={
+            !isPending && !isEvent
+              ? { backgroundColor: categoryColor(entry.category) }
+              : undefined
+          }
           aria-hidden
         >
           {isEvent ? (
             <EventIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
           ) : (
-            <PlaceIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            <CategoryIcon
+              category={entry.category}
+              className="h-3 w-3 sm:h-3.5 sm:w-3.5"
+            />
           )}
         </span>
       </div>

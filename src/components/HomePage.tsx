@@ -2,20 +2,25 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiltersBar } from "@/components/FiltersBar";
 import { EntryList } from "@/components/EntryList";
 import { Header } from "@/components/Header";
+import { CategoryStrip } from "@/components/CategoryStrip";
 import { SubmitForm } from "@/components/SubmitForm";
 import { AppSplash, QuietLoader } from "@/components/LoadingScreen";
 import {
-  hasSeenWelcome,
-  markWelcomeSeen,
-  WelcomeModal,
-} from "@/components/WelcomeModal";
+  hasSeenInterests,
+  InterestsModal,
+  loadSavedInterests,
+  saveInterests,
+} from "@/components/InterestsModal";
 import type { Category, DateFilter, ViewFilter } from "@/lib/constants";
 import { CATEGORIES } from "@/lib/constants";
 import type { Entry } from "@/lib/types";
 import { matchesDateFilter, sortEntries } from "@/lib/utils";
+import {
+  loadViewedEntryIds,
+  markEntryViewed,
+} from "@/lib/viewedEntries";
 
 const EntryMap = dynamic(
   () => import("@/components/EntryMap").then((m) => m.EntryMap),
@@ -33,7 +38,7 @@ export function HomePage() {
   const [allEntries, setAllEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
+  const [viewFilter, setViewFilter] = useState<ViewFilter>("place");
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilter>("upcoming");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,11 +47,18 @@ export function HomePage() {
   const [pinMode, setPinMode] = useState(false);
   const [exitPinModeSignal, setExitPinModeSignal] = useState(0);
   const [introReady, setIntroReady] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [sidebarReady, setSidebarReady] = useState(false);
+  const [showInterests, setShowInterests] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [viewedIds, setViewedIds] = useState<Set<string>>(() => new Set());
   const [draftPin, setDraftPin] = useState<{ lat: number; lng: number } | null>(
     null
   );
+
+  useEffect(() => {
+    setViewedIds(loadViewedEntryIds());
+    setSelectedCategories(loadSavedInterests());
+  }, []);
 
   const loadEntries = useCallback(() => {
     setLoading(true);
@@ -82,23 +94,7 @@ export function HomePage() {
     }
   }, [showSubmit]);
 
-  const eventCount = useMemo(
-    () =>
-      allEntries.filter(
-        (e) => e.type === "event" && matchesDateFilter(e, "upcoming")
-      ).length,
-    [allEntries]
-  );
-
-  const placeCount = useMemo(
-    () => allEntries.filter((e) => e.type === "place").length,
-    [allEntries]
-  );
-
-  const allCount = eventCount + placeCount;
-
   const typeEntries = useMemo(() => {
-    if (viewFilter === "all") return allEntries;
     return allEntries.filter((e) => e.type === viewFilter);
   }, [allEntries, viewFilter]);
 
@@ -113,47 +109,34 @@ export function HomePage() {
     // Date filter applies to events only; places always pass
     if (viewFilter === "event") {
       result = result.filter((e) => matchesDateFilter(e, dateFilter));
-    } else if (viewFilter === "all") {
-      result = result.filter(
-        (e) => e.type === "place" || matchesDateFilter(e, dateFilter)
-      );
     }
 
-    if (selectedCategories.length > 0) {
-      result = result.filter((e) => selectedCategories.includes(e.category));
-    }
+    const sorted = sortEntries(result, viewFilter);
 
-    return sortEntries(result, viewFilter);
+    // Preferred interests float to the top; others stay visible (dulled in UI)
+    if (selectedCategories.length === 0) return sorted;
+    return [...sorted].sort((a, b) => {
+      const aHit = selectedCategories.includes(a.category) ? 0 : 1;
+      const bHit = selectedCategories.includes(b.category) ? 0 : 1;
+      return aHit - bHit;
+    });
   }, [typeEntries, viewFilter, dateFilter, selectedCategories]);
 
-  /** Map shows everything until the user applies a real filter */
-  const mapEntries = useMemo(() => {
-    const hasActiveFilters =
-      viewFilter !== "all" ||
-      selectedCategories.length > 0 ||
-      dateFilter !== "upcoming";
-
-    if (!hasActiveFilters) {
-      return sortEntries(allEntries, "all");
-    }
-    return filteredEntries;
-  }, [allEntries, filteredEntries, viewFilter, selectedCategories, dateFilter]);
-
-  const handleViewFilterChange = useCallback((filter: ViewFilter) => {
-    setViewFilter(filter);
-    setSelectedId(null);
-    setFlyToEntry(null);
-    setSelectedCategories([]);
-  }, []);
+  /** Map shows the full Events/Spots set; category focus only dulls pins */
+  const mapEntries = useMemo(() => filteredEntries, [filteredEntries]);
 
   const handleSelect = useCallback((entry: Entry | null) => {
     setSelectedId(entry?.id ?? null);
-    if (entry) setFlyToEntry(entry);
+    if (entry) {
+      setFlyToEntry(entry);
+      setViewedIds(markEntryViewed(entry.id));
+    }
   }, []);
 
   const handleListSelect = useCallback((entry: Entry) => {
     setSelectedId(entry.id);
     setFlyToEntry({ ...entry });
+    setViewedIds(markEntryViewed(entry.id));
   }, []);
 
   const suggestDefault =
@@ -169,18 +152,34 @@ export function HomePage() {
 
   const handleIntroDone = useCallback(() => setIntroReady(true), []);
 
-  const closeWelcome = useCallback(() => {
-    markWelcomeSeen();
-    setShowWelcome(false);
+  // Map + pins first; sidebar arrives after a beat
+  useEffect(() => {
+    if (!introReady) return;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    const delay = reduceMotion ? 0 : 3000;
+    const t = window.setTimeout(() => setSidebarReady(true), delay);
+    return () => window.clearTimeout(t);
+  }, [introReady]);
+
+  const handleCategoriesChange = useCallback((categories: Category[]) => {
+    setSelectedCategories(categories);
+    saveInterests(categories);
   }, []);
 
-  // After splash + map are ready, invite first-time visitors once
+  const handleInterestsContinue = useCallback((categories: Category[]) => {
+    setSelectedCategories(categories);
+    setShowInterests(false);
+  }, []);
+
+  // Interests modal after the sidebar has arrived
   useEffect(() => {
-    if (!introReady || loading) return;
-    if (hasSeenWelcome()) return;
-    const t = window.setTimeout(() => setShowWelcome(true), 600);
+    if (!sidebarReady || loading) return;
+    if (hasSeenInterests()) return;
+    const t = window.setTimeout(() => setShowInterests(true), 500);
     return () => window.clearTimeout(t);
-  }, [introReady, loading]);
+  }, [sidebarReady, loading]);
 
   // Never leave the splash waiting forever if the fetch hangs
   useEffect(() => {
@@ -189,20 +188,34 @@ export function HomePage() {
     return () => window.clearTimeout(t);
   }, [loading]);
 
+  const spotSelected = Boolean(selectedId) && !showSubmit && !mapExpanded;
+
   return (
     <AppSplash ready={!loading} onIntroDone={handleIntroDone}>
-      <WelcomeModal
-        open={showWelcome}
-        onClose={closeWelcome}
-        onAddSpot={openSuggest}
+      <InterestsModal
+        open={showInterests}
+        onContinue={handleInterestsContinue}
       />
       <div className="flex h-dvh flex-col lg:flex-row">
-      {/* Map: above list on mobile, right side on desktop */}
+      {/* Brand bar — top of screen on mobile; inside sidebar on desktop */}
+      {sidebarReady && (
+        <div className="order-0 shrink-0 bg-surface lg:hidden">
+          <Header
+            variant="sidebar"
+            listingCount={filteredEntries.length}
+            viewFilter={viewFilter}
+          />
+        </div>
+      )}
+
+      {/* Map: full-bleed while pins drop in, then shares space with sidebar */}
       <aside
-        className={`relative order-1 shrink-0 border-b border-line transition-[height,flex-grow] duration-300 ease-out lg:order-2 lg:h-full lg:min-w-0 lg:flex-1 lg:border-b-0 lg:border-l ${
-          mapExpanded
-            ? "h-dvh flex-1 border-b-0"
-            : "h-[54vh] min-h-[300px] max-h-[58vh] lg:max-h-none"
+        className={`relative order-1 shrink-0 border-b border-line transition-[height,flex-grow,max-height] duration-500 ease-out lg:order-2 lg:h-full lg:min-w-0 lg:flex-1 lg:border-b-0 lg:border-l ${
+          mapExpanded || !sidebarReady
+            ? "min-h-0 flex-1 border-b-0 max-h-none lg:h-full"
+            : spotSelected
+              ? "min-h-0 flex-1 max-h-none lg:max-h-none"
+              : "h-[46%] min-h-[260px] max-h-[52%] lg:h-full lg:max-h-none"
         }`}
       >
         <div className="absolute inset-0">
@@ -220,69 +233,64 @@ export function HomePage() {
             }}
             onSuggestAt={!showSubmit ? openSuggestAt : undefined}
             animatePins={introReady}
+            viewedIds={viewedIds}
+            focusedCategories={selectedCategories}
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setMapExpanded((v) => !v)}
-          aria-expanded={mapExpanded}
-          aria-label={mapExpanded ? "Collapse map" : "Expand map"}
-          className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink shadow-sm transition hover:bg-wash lg:hidden"
-        >
-          {mapExpanded ? (
-            <>
-              <CollapseMapIcon />
-              Show list
-            </>
-          ) : (
-            <>
-              <ExpandMapIcon />
-              Expand map
-            </>
-          )}
-        </button>
-        {!showSubmit && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-2 pt-2 sm:px-4 sm:pt-3">
-            <div className="pointer-events-auto w-full max-w-[min(100%,480px)]">
-              <FiltersBar
-                floating
-                viewFilter={viewFilter}
-                onViewFilterChange={handleViewFilterChange}
-                selectedCategories={selectedCategories}
-                onCategoriesChange={setSelectedCategories}
-                dateFilter={dateFilter}
-                onDateFilterChange={setDateFilter}
-                availableCategories={availableCategories}
-                allCount={allCount}
-                eventCount={eventCount}
-                placeCount={placeCount}
-              />
-            </div>
-          </div>
+        {sidebarReady && (
+          <button
+            type="button"
+            onClick={() => setMapExpanded((v) => !v)}
+            aria-expanded={mapExpanded}
+            aria-label={mapExpanded ? "Collapse map" : "Expand map"}
+            className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink shadow-sm transition hover:bg-wash lg:hidden"
+          >
+            {mapExpanded ? (
+              <>
+                <CollapseMapIcon />
+                Show list
+              </>
+            ) : (
+              <>
+                <ExpandMapIcon />
+                Expand map
+              </>
+            )}
+          </button>
         )}
       </aside>
 
-      {/* List: below map on mobile, left sidebar on desktop */}
+      {/* List: slides in after the pin intro */}
       <section
-        className={`relative order-2 min-w-0 flex-col overflow-hidden bg-surface transition-[flex-grow] duration-300 ease-out lg:order-1 lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none ${
-          mapExpanded ? "hidden lg:flex" : "flex min-h-0 flex-1"
+        className={`relative order-2 min-w-0 flex-col overflow-hidden bg-surface transition-all duration-500 ease-out lg:order-1 ${
+          !sidebarReady
+            ? "pointer-events-none max-h-0 flex-none translate-y-6 opacity-0 lg:w-0 lg:max-w-0 lg:translate-x-[-16px] lg:translate-y-0 lg:border-0 lg:opacity-0"
+            : mapExpanded
+              ? "hidden lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none lg:translate-x-0 lg:opacity-100"
+              : spotSelected
+                ? "flex min-h-0 max-h-[18vh] flex-none translate-y-0 opacity-100 lg:h-full lg:max-h-none lg:w-[32%] lg:max-w-[420px] lg:flex-none lg:translate-x-0"
+                : "flex min-h-0 flex-1 translate-y-0 opacity-100 lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none lg:translate-x-0"
         }`}
       >
-        <Header
-          variant="sidebar"
-          listingCount={filteredEntries.length}
-          viewFilter={viewFilter}
-        />
+        <div className="hidden lg:block">
+          <Header
+            variant="sidebar"
+            listingCount={filteredEntries.length}
+            viewFilter={viewFilter}
+          />
+        </div>
 
         {showSubmit ? (
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-4">
+          <div className="hide-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-4">
             <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3 sm:gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-ink sm:text-base">
-                  Suggest an event or place
+                  {viewFilter === "event" ? "Add an event" : "Add a spot"}
                 </h2>
                 <p className="mt-0.5 text-xs text-ink-muted sm:text-sm">
-                  Shows as pending until an admin verifies it.
+                  {viewFilter === "event"
+                    ? "Share a gig, market, meetup, or anything worth showing up for. It stays pending until verified."
+                    : "Share a café, trail, hangout, or hidden gem. It stays pending until verified."}
                 </p>
               </div>
               <button
@@ -304,6 +312,7 @@ export function HomePage() {
               <SubmitForm
                 compact
                 defaultType={suggestDefault}
+                lockType
                 lat={draftPin?.lat}
                 lng={draftPin?.lng}
                 exitPinModeSignal={exitPinModeSignal}
@@ -325,7 +334,12 @@ export function HomePage() {
           </div>
         ) : (
           <>
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 pb-20 sm:px-4 sm:py-4 sm:pb-24">
+            <CategoryStrip
+              categories={availableCategories}
+              selected={selectedCategories}
+              onChange={handleCategoriesChange}
+            />
+            <div className="hide-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-4 sm:py-4">
               {error ? (
                 <div className="rounded-xl bg-danger-soft px-3 py-4 text-center sm:px-4 sm:py-6">
                   <p className="text-sm text-danger">{error}</p>
@@ -337,18 +351,12 @@ export function HomePage() {
                   onSelect={handleListSelect}
                   loading={loading}
                   viewFilter={viewFilter}
-                  animateIn={introReady}
+                  animateIn={sidebarReady}
+                  viewedIds={viewedIds}
+                  focusedCategories={selectedCategories}
+                  onAdd={openSuggest}
                 />
               )}
-            </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)]/90 to-transparent px-2 pb-3 pt-8 sm:px-4 sm:pb-4 sm:pt-10">
-              <button
-                type="button"
-                onClick={openSuggest}
-                className="btn-primary pointer-events-auto mx-auto flex w-full max-w-sm items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold shadow-lg sm:py-2.5 sm:text-sm"
-              >
-                Add an Event/Spot
-              </button>
             </div>
           </>
         )}

@@ -1,19 +1,12 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Entry } from "@/lib/types";
-import type { ViewFilter } from "@/lib/constants";
+import type { Category, ViewFilter } from "@/lib/constants";
 import { EntryCard } from "./EntryCard";
 import { KohMascot } from "./KohMascot";
 import { QuietLoader } from "./LoadingScreen";
 
-const EVENT_PREVIEW_COUNT = 3;
 const STACK_MAX_STAGGER = 14;
 
 interface EntryListProps {
@@ -24,36 +17,50 @@ interface EntryListProps {
   viewFilter: ViewFilter;
   /** Start stack-in after splash (page load) */
   animateIn?: boolean;
+  viewedIds?: Set<string>;
+  focusedCategories?: Category[];
+  onAdd?: () => void;
 }
 
-function emptyLabel(viewFilter: ViewFilter): string {
-  if (viewFilter === "event") return "events";
-  if (viewFilter === "place") return "spots";
-  return "listings";
+function emptyCopy(viewFilter: ViewFilter): { title: string; body: string } {
+  if (viewFilter === "event") {
+    return {
+      title: "No events yet",
+      body: "Nothing scheduled in this view — switch to Spots, or add an event so others can find it.",
+    };
+  }
+  return {
+    title: "No spots yet",
+    body: "No places match these filters — switch to Events, or add a café, trail, or hangout you know.",
+  };
 }
 
-function ChevronIcon({
-  className = "",
-  up = false,
+function ListFooter({
+  viewFilter,
+  onAdd,
 }: {
-  className?: string;
-  up?: boolean;
+  viewFilter: ViewFilter;
+  onAdd?: () => void;
 }) {
+  if (!onAdd) return null;
+
+  const isEvent = viewFilter === "event";
+
   return (
-    <svg
-      className={className}
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden
-    >
-      <path
-        d={up ? "M4 10.5 8 6.5l4 4" : "M4 6.5 8 10.5l4-4"}
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <div className="mt-6 border-t border-line px-2 pb-6 pt-6 text-center sm:mt-8 sm:px-3 sm:pb-8 sm:pt-8">
+      <p className="mx-auto max-w-[260px] text-sm leading-relaxed text-ink-muted sm:max-w-[280px] sm:text-[15px]">
+        {isEvent
+          ? "Know something happening in Islamabad? Share it with us."
+          : "Do you know a good spot?"}
+      </p>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-3 text-sm font-semibold text-ink underline decoration-ink/25 underline-offset-4 transition hover:decoration-ink sm:mt-3.5"
+      >
+        Add on map
+      </button>
+    </div>
   );
 }
 
@@ -64,18 +71,15 @@ export function EntryList({
   loading,
   viewFilter,
   animateIn = false,
+  viewedIds,
+  focusedCategories = [],
+  onAdd,
 }: EntryListProps) {
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [eventsExpanded, setEventsExpanded] = useState(false);
   /** pending → hidden until splash; animating → stack-in; done → normal */
   const [stackPhase, setStackPhase] = useState<"pending" | "animating" | "done">(
     "pending"
   );
-
-  // Reset collapse when leaving All view or when the listing set changes a lot
-  useEffect(() => {
-    setEventsExpanded(false);
-  }, [viewFilter]);
 
   // Play stack-in once after splash, when listings are ready
   useEffect(() => {
@@ -97,34 +101,6 @@ export function EntryList({
     return () => window.clearTimeout(t);
   }, [animateIn, loading, entries.length, stackPhase]);
 
-  const { previewEntries, hiddenEventCount, toggleAfterIndex, canToggle } =
-    useMemo(() => {
-      if (viewFilter !== "all") {
-        return {
-          previewEntries: entries,
-          hiddenEventCount: 0,
-          toggleAfterIndex: -1,
-          canToggle: false,
-        };
-      }
-
-      const events = entries.filter((e) => e.type === "event");
-      const places = entries.filter((e) => e.type === "place");
-      const hidden = Math.max(0, events.length - EVENT_PREVIEW_COUNT);
-      const canToggle = hidden > 0;
-      const shownEvents = eventsExpanded
-        ? events
-        : events.slice(0, EVENT_PREVIEW_COUNT);
-      const preview = [...shownEvents, ...places];
-
-      return {
-        previewEntries: preview,
-        hiddenEventCount: hidden,
-        toggleAfterIndex: shownEvents.length > 0 ? shownEvents.length - 1 : -1,
-        canToggle,
-      };
-    }, [entries, viewFilter, eventsExpanded]);
-
   useEffect(() => {
     if (!selectedId) return;
     const el = cardRefs.current[selectedId];
@@ -136,15 +112,19 @@ export function EntryList({
   }
 
   if (entries.length === 0) {
+    const empty = emptyCopy(viewFilter);
     return (
-      <div className="flex flex-col items-center py-8 text-center sm:py-16">
-        <KohMascot size={48} mood="look" interactive />
-        <p className="mt-2 text-base font-semibold text-ink sm:mt-3 sm:text-lg">
-          No {emptyLabel(viewFilter)} yet
-        </p>
-        <p className="mt-1 max-w-[240px] text-xs text-ink-muted sm:text-sm">
-          Suggest one using the button below — Koh will keep watch.
-        </p>
+      <div>
+        <div className="flex flex-col items-center py-8 text-center sm:py-16">
+          <KohMascot size={48} mood="look" interactive />
+          <p className="mt-2 text-base font-semibold text-ink sm:mt-3 sm:text-lg">
+            {empty.title}
+          </p>
+          <p className="mt-1 max-w-[280px] text-xs leading-relaxed text-ink-muted sm:text-sm">
+            {empty.body}
+          </p>
+        </div>
+        <ListFooter viewFilter={viewFilter} onAdd={onAdd} />
       </div>
     );
   }
@@ -152,7 +132,7 @@ export function EntryList({
   return (
     <div>
       <div className="flex flex-col gap-0.5 sm:gap-1">
-        {previewEntries.map((entry, index) => {
+        {entries.map((entry, index) => {
           const stagger = Math.min(index, STACK_MAX_STAGGER);
           return (
             <div
@@ -176,39 +156,19 @@ export function EntryList({
                 <EntryCard
                   entry={entry}
                   isSelected={selectedId === entry.id}
+                  isViewed={viewedIds?.has(entry.id)}
+                  isDimmed={
+                    focusedCategories.length > 0 &&
+                    !focusedCategories.includes(entry.category)
+                  }
                   onClick={() => onSelect(entry)}
                 />
               </div>
-              {canToggle && index === toggleAfterIndex && (
-                <button
-                  type="button"
-                  onClick={() => setEventsExpanded((v) => !v)}
-                  aria-expanded={eventsExpanded}
-                  className="group/expand flex w-full items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-[var(--orange)] transition hover:text-[color-mix(in_srgb,var(--orange)_80%,black)] sm:py-2 sm:text-sm"
-                >
-                  {eventsExpanded ? (
-                    <>
-                      Show fewer events
-                      <ChevronIcon
-                        className="h-4 w-4 transition group-hover/expand:-translate-y-0.5"
-                        up
-                      />
-                    </>
-                  ) : (
-                    <>
-                      View all events
-                      <span className="tabular-nums opacity-70">
-                        (+{hiddenEventCount})
-                      </span>
-                      <ChevronIcon className="h-4 w-4 transition group-hover/expand:translate-y-0.5" />
-                    </>
-                  )}
-                </button>
-              )}
             </div>
           );
         })}
       </div>
+      <ListFooter viewFilter={viewFilter} onAdd={onAdd} />
     </div>
   );
 }

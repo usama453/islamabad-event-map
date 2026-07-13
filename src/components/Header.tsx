@@ -34,10 +34,7 @@ function listingCountLabel(count: number, viewFilter: ViewFilter): string {
   if (viewFilter === "event") {
     return `${count} event${count !== 1 ? "s" : ""}`;
   }
-  if (viewFilter === "place") {
-    return `${count} spot${count !== 1 ? "s" : ""}`;
-  }
-  return `${count} listing${count !== 1 ? "s" : ""}`;
+  return `${count} spot${count !== 1 ? "s" : ""}`;
 }
 
 interface HeaderProps {
@@ -50,7 +47,7 @@ interface HeaderProps {
 export function Header({
   variant = "bar",
   listingCount,
-  viewFilter = "all",
+  viewFilter = "place",
 }: HeaderProps) {
   if (variant === "sidebar") {
     return (
@@ -73,8 +70,8 @@ export function Header({
                   </span>
                 )}
               </span>
-              <span className="mt-0.5 hidden text-[11px] font-medium leading-snug text-ink-muted sm:block">
-                What&apos;s happening in Islamabad
+              <span className="mt-0.5 block text-[10px] font-medium leading-snug text-ink-muted sm:text-[11px]">
+                Community map of events &amp; spots
               </span>
             </span>
           </Link>
@@ -100,7 +97,7 @@ export function Header({
               Islamabad Explore
             </span>
             <span className="mt-0.5 block text-xs font-medium text-ink-muted">
-              What&apos;s happening in Islamabad
+              Community map of events &amp; spots
             </span>
           </span>
         </Link>

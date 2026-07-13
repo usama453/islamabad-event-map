@@ -1,32 +1,45 @@
-export const CATEGORIES = [
-  "food",
-  "nightlife",
-  "nature",
-  "culture",
-  "shopping",
-  "sports",
-  "kids",
-  "art",
-  "music",
-  "education",
-  "other",
-] as const;
+export const CATEGORIES = ["food", "scenic", "hidden", "activity"] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   food: "Food",
-  nightlife: "Nightlife",
-  nature: "Nature",
-  culture: "Culture",
-  shopping: "Shopping",
-  sports: "Sports",
-  kids: "Kids",
-  art: "Art",
-  music: "Music",
-  education: "Education",
-  other: "Other",
+  scenic: "Scenic",
+  hidden: "Hidden",
+  activity: "Activity",
 };
+
+/** Distinct colors per spot/event category (map pins, badges) */
+export const CATEGORY_COLORS: Record<Category, string> = {
+  food: "#E85D04",
+  scenic: "#2D6A4F",
+  hidden: "#7B2CBF",
+  activity: "#0077B6",
+};
+
+/** Map old Airtable / localStorage values onto the current four categories */
+export function normalizeCategory(value: unknown): Category {
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if ((CATEGORIES as readonly string[]).includes(raw)) {
+    return raw as Category;
+  }
+
+  const legacy: Record<string, Category> = {
+    nature: "scenic",
+    culture: "scenic",
+    art: "scenic",
+    nightlife: "activity",
+    sports: "activity",
+    kids: "activity",
+    music: "activity",
+    education: "activity",
+    shopping: "hidden",
+    other: "hidden",
+  };
+  return legacy[raw] ?? "hidden";
+}
 
 /** Map pins — by entry type; pending overrides with amber */
 export const MAP_PIN_COLORS = {
@@ -44,54 +57,24 @@ export const CATEGORY_IMAGE_POOLS: Record<Category, string[]> = {
     "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&h=600&fit=crop",
     "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&h=600&fit=crop",
   ],
-  nightlife: [
-    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1571266028247-d9758b6e0e0e?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&h=600&fit=crop",
-  ],
-  nature: [
+  scenic: [
     "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&h=600&fit=crop",
     "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600&h=600&fit=crop",
     "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=600&h=600&fit=crop",
     "https://images.unsplash.com/photo-1439066615861-d1af74d74000?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&h=600&fit=crop",
-  ],
-  culture: [
-    "https://images.unsplash.com/photo-1566127444979-b3d2b654e3d7?w=600&h=600&fit=crop",
     "https://images.unsplash.com/photo-1548013146-72479768bada?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=600&h=600&fit=crop",
+  ],
+  hidden: [
     "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=600&h=600&fit=crop",
-  ],
-  shopping: [
-    "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=600&h=600&fit=crop",
-  ],
-  sports: [
-    "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&h=600&fit=crop",
-  ],
-  kids: [
-    "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1503919005314-30d933dd259f?w=600&h=600&fit=crop",
-  ],
-  art: [
-    "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=600&h=600&fit=crop",
     "https://images.unsplash.com/photo-1578321272176-b7bbc0679853?w=600&h=600&fit=crop",
-  ],
-  music: [
-    "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&h=600&fit=crop",
-  ],
-  education: [
-    "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&h=600&fit=crop",
-  ],
-  other: [
     "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=600&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=600&h=600&fit=crop",
+    "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=600&h=600&fit=crop",
+  ],
+  activity: [
+    "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=600&h=600&fit=crop",
+    "https://images.unsplash.com/photo-1501555088652-021faa106b9b?w=600&h=600&fit=crop",
+    "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&h=600&fit=crop",
+    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&h=600&fit=crop",
   ],
 };
 
@@ -156,8 +139,8 @@ export const DEFAULT_ZOOM = 11;
 
 export type EntryType = "event" | "place";
 
-/** Explore page filter — "all" shows both */
-export type ViewFilter = "all" | EntryType;
+/** Explore page filter — Events or Spots (one at a time) */
+export type ViewFilter = EntryType;
 
 export type DateFilter = "today" | "week" | "upcoming";
 

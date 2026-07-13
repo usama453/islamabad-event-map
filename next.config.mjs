@@ -1,4 +1,3 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["mapbox-gl"],
   images: {
@@ -6,6 +5,18 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "dl.airtable.com",
+      },
+      {
+        protocol: "https",
+        hostname: "v5.airtableusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.airtableusercontent.com",
       },
     ],
   },

@@ -87,30 +87,27 @@ export function WelcomeModal({ open, onClose, onAddSpot }: WelcomeModalProps) {
                 id="welcome-title"
                 className="font-pixel text-[11px] uppercase leading-relaxed tracking-wide text-[#7dff9a] sm:text-[12px]"
               >
-                Community map
+                Islamabad Explore
               </p>
               <p className="mt-2 font-pixel text-[9px] uppercase tracking-wider text-[#c8b48a]">
-                Built by the city · for the city
+                A community map of events &amp; spots
               </p>
             </div>
           </div>
 
           <div className="koh-about-copy mt-4 space-y-3 font-pixel text-[9px] uppercase leading-[1.9] tracking-wide text-[#f0e6c8] sm:text-[10px]">
             <p>
-              This is a community-driven map of Islamabad. Know a good spot?
-              Something happening soon? Drop it on the map.
+              Browse the map for what&apos;s on in Islamabad — gigs, markets,
+              cafés, trails, hangouts. Tap a pin to open the details.
             </p>
             <p>
-              <span className="text-[#7dff9a]">1.</span> Add spots you know —
-              cafés, trails, hangouts, hidden gems.
+              <span className="text-[#ff9a4a]">Orange</span> pins = events.{" "}
+              <span className="text-[#6aa8ff]">Blue</span> pins = spots. Amber =
+              waiting for a human to verify.
             </p>
             <p>
-              <span className="text-[#ff9a4a]">2.</span> Share upcoming events —
-              gigs, markets, meetups, anything worth showing up for.
-            </p>
-            <p>
-              <span className="text-[#c8b48a]">3.</span> New pins show as pending
-              until someone verifies them — then they go live for everyone.
+              Know something good? Add it. New pins stay pending until verified,
+              then they go live for everyone.
             </p>
             <p className="text-[#7dff9a]">
               &gt; Press X to close. Or click the fog.

@@ -38,12 +38,13 @@ Live “people viewing” uses **Upstash Redis** when set, otherwise **Airtable*
 | `Title` | Single line text | Required |
 | `Description` | Long text | Optional; may include `Contact: …` / `Time: …` metadata lines |
 | `Organizer` | Single line text | **Required column** — submitter’s name (queryable). Create this field if missing. |
-| `Category` | Single select | `food`, `nightlife`, `nature`, `culture`, `shopping`, `sports`, `kids`, `art`, `music`, `education`, `other` |
+| `Category` | Single select | `food`, `scenic`, `hidden`, `activity` |
 | `Lat` / `Lng` | Number | Optional coordinates |
 | `LocationText` | Single line text | Fallback / TBD |
 | `SourceURL` | URL | Optional |
 | `EventDate` / `EventEndDate` | Date | Events only |
 | `Status` | Single select | `pending` (default), `approved`, `rejected` |
+| `Photos` | Attachment | Optional — user uploads from the suggest form (up to 3) |
 
 ### Airtable table: `Subscribers`
 
@@ -53,6 +54,19 @@ Create a second table in the same base for “Stay updated” signups:
 |---|---|---|
 | `Email` | Email or single line text | Required, unique-ish |
 | `Status` | Single select | `active` (default), optional `unsubscribed` |
+
+### Airtable table: `Comments`
+
+Create a third table for map-popup comments on spots and events:
+
+| Field | Type | Notes |
+|---|---|---|
+| `EntryId` | Single line text | Required — Airtable record ID of the listing (e.g. `rec…`) |
+| `Body` | Long text | Comment text |
+| `AuthorName` | Single line text | Display name (user-provided or auto-generated) |
+| `Status` | Single select | `approved` (default), `rejected` — set `rejected` to hide |
+
+Comments appear in the map pin popup. Name is optional; blank names get a random username (e.g. `SillyPanda`).
 
 ```bash
 npm run dev
@@ -92,6 +106,8 @@ Airtable credentials stay server-side; only `NEXT_PUBLIC_MAPBOX_TOKEN` is expose
 
 - `GET /api/entries` — approved + pending entries (rejected excluded)
 - `POST /api/entries` — create pending entry (honeypot field: `website`)
+- `GET /api/comments?entryId=` — comments for a listing
+- `POST /api/comments` — post a comment (`entryId`, `body`, optional `authorName`; honeypot: `website`)
 - `POST /api/subscribe` — email signup for updates (honeypot field: `website`)
 - `GET` / `POST /api/presence` — live viewer heartbeat (`visitorId`); returns `{ viewers, shared }`
 

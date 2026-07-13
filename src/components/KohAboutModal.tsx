@@ -78,13 +78,12 @@ export function KohAboutModal({ open, onClose }: KohAboutModalProps) {
 
           <div className="koh-about-copy mt-4 space-y-3 font-pixel text-[9px] uppercase leading-[1.9] tracking-wide text-[#f0e6c8] sm:text-[10px]">
             <p>
-              Hey. I&apos;m Koh. I walk these sectors so you don&apos;t have to
-              guess where the good stuff is.
+              Hey. I&apos;m Koh. This is a community map of Islamabad — events
+              and spots people actually go to.
             </p>
             <p>
-              This map is a living scrapbook of Islamabad — jazz under the pines,
-              secret cafés, trailheads, pop-ups, and the spots your friend
-              &ldquo;knows a guy&rdquo; about.
+              Jazz under the pines, secret cafés, trailheads, pop-ups, and the
+              places your friend &ldquo;knows a guy&rdquo; about.
             </p>
             <p>
               Orange pins = events. Blue pins = spots. Amber ones? Still waiting

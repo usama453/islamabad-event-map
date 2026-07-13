@@ -19,10 +19,23 @@ const pixel = Press_Start_2P({
   variable: "--font-pixel",
 });
 
+const siteDescription =
+  "A community map of events and spots in Islamabad — tap pins for gigs, markets, cafés, and hangouts, or add your own.";
+
 export const metadata: Metadata = {
-  title: "Islamabad Explore — Events & Places",
-  description:
-    "Discover events and interesting places in Islamabad on an interactive map.",
+  title: "Islamabad Explore — Community map of events & spots",
+  description: siteDescription,
+  openGraph: {
+    title: "Islamabad Explore",
+    description: siteDescription,
+    type: "website",
+    locale: "en_PK",
+  },
+  twitter: {
+    card: "summary",
+    title: "Islamabad Explore",
+    description: siteDescription,
+  },
 };
 
 const themeScript = `

@@ -10,6 +10,7 @@ import {
   MAP_PIN_COLORS,
   ISLAMABAD_CENTER,
   DEFAULT_ZOOM,
+  type Category,
 } from "@/lib/constants";
 import {
   entryOrganizerName,
@@ -24,6 +25,7 @@ import { FloatingSprites, KohCompanion } from "@/components/KohMascot";
 import { MapPopupCard } from "@/components/MapPopupCard";
 import { ViewerTicker } from "@/components/ViewerTicker";
 import { useTheme } from "@/components/ThemeProvider";
+import { CategoryIcon, categoryColor } from "@/components/CategoryIcon";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
@@ -41,6 +43,8 @@ interface EntryMapProps {
   onSuggestAt?: (lat: number, lng: number) => void;
   /** Start one-by-one pin drop after splash */
   animatePins?: boolean;
+  viewedIds?: Set<string>;
+  focusedCategories?: Category[];
 }
 
 function EventPinIcon({ className }: { className?: string }) {
@@ -112,13 +116,18 @@ function PinTooltip({ entry }: { entry: Entry }) {
               ? "bg-[var(--pending)]"
               : isEvent
                 ? "bg-[var(--orange)]"
-                : "bg-[var(--blue)]"
+                : ""
           }`}
+          style={
+            !isPending && !isEvent
+              ? { backgroundColor: categoryColor(entry.category) }
+              : undefined
+          }
         >
           {isEvent ? (
             <EventPinIcon className="h-2.5 w-2.5" />
           ) : (
-            <PlacePinIcon className="h-2.5 w-2.5" />
+            <CategoryIcon category={entry.category} className="h-2.5 w-2.5" />
           )}
         </span>
         <span
@@ -127,14 +136,21 @@ function PinTooltip({ entry }: { entry: Entry }) {
               ? "text-[var(--pending)]"
               : isEvent
                 ? "text-[var(--orange)]"
-                : "text-[var(--blue)]"
+                : ""
           }`}
+          style={
+            !isPending && !isEvent
+              ? { color: categoryColor(entry.category) }
+              : undefined
+          }
         >
-          {isEvent ? "Event" : "Place"}
+          {isEvent ? "Event" : CATEGORY_LABELS[entry.category]}
         </span>
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-          {CATEGORY_LABELS[entry.category]}
-        </span>
+        {isEvent && (
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+            {CATEGORY_LABELS[entry.category]}
+          </span>
+        )}
         {isPending && <span className="pending-badge">Pending</span>}
         {soonLabel && (
           <span className="soon-badge">
@@ -172,25 +188,41 @@ function PinTooltip({ entry }: { entry: Entry }) {
 function MapPin({
   entry,
   isSelected,
+  isViewed,
+  isDimmed,
   showTooltip,
   onHoverChange,
   enter,
 }: {
   entry: Entry;
   isSelected: boolean;
+  isViewed?: boolean;
+  isDimmed?: boolean;
   showTooltip: boolean;
   onHoverChange: (hovering: boolean) => void;
   enter?: boolean;
 }) {
   const isEvent = entry.type === "event";
   const isPending = entry.status === "pending";
-  const color = isPending ? MAP_PIN_COLORS.pending : MAP_PIN_COLORS[entry.type];
+  const color = isPending
+    ? MAP_PIN_COLORS.pending
+    : isEvent
+      ? MAP_PIN_COLORS.event
+      : categoryColor(entry.category);
   const soon = isEvent && !isPending && isEventHappeningSoon(entry);
   const soonLabel = soon ? happeningSoonLabel(entry) : null;
+  const showViewed = Boolean(isViewed && !isSelected && !isDimmed);
 
   return (
     <div
-      className={`relative ${enter ? "map-pin-enter" : ""}`}
+      className={`relative ${enter ? "map-pin-enter" : ""} ${
+        isDimmed && !isSelected
+          ? "opacity-[0.22] saturate-[0.3]"
+          : showViewed
+            ? "opacity-55 saturate-[0.7]"
+            : ""
+      }`}
+      style={{ zIndex: isSelected ? 3 : isDimmed ? 1 : 2 }}
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
     >
@@ -202,24 +234,22 @@ function MapPin({
       <button
         type="button"
         aria-label={`${isPending ? "Pending " : ""}${
-          isEvent ? "Event" : "Place"
+          isEvent ? "Event" : CATEGORY_LABELS[entry.category]
         }: ${entry.title}${soonLabel ? ` — ${soonLabel}` : ""}${
           isPending ? " — awaiting review" : ""
-        }`}
-        className={`relative flex h-7 w-7 items-center justify-center rounded-full border-0 text-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-transform dark:shadow-[0_2px_10px_rgba(0,0,0,0.55)] ${
+        }${showViewed ? " — viewed" : ""}`}
+        className={`relative flex h-8 w-8 items-center justify-center rounded-full border-0 text-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-transform dark:shadow-[0_2px_10px_rgba(0,0,0,0.55)] ${
           isPending ? "pin-pending" : isEvent ? "pin-event" : ""
         } ${isSelected ? "scale-125" : "hover:scale-110"} ${
           isPending ? "ring-2 ring-dashed ring-white/80" : ""
         }`}
-        style={
-          isPending || isEvent ? undefined : { backgroundColor: color }
-        }
+        style={isPending || isEvent ? undefined : { backgroundColor: color }}
       >
         {soon && <span className="pin-soon-ring" aria-hidden />}
         {isEvent ? (
           <EventPinIcon className="h-3.5 w-3.5" />
         ) : (
-          <PlacePinIcon className="h-3.5 w-3.5" />
+          <CategoryIcon category={entry.category} className="h-4 w-4" />
         )}
         <span
           className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent"
@@ -242,10 +272,20 @@ export function EntryMap({
   onCancelPinMode,
   onSuggestAt,
   animatePins = false,
+  viewedIds,
+  focusedCategories = [],
 }: EntryMapProps) {
   const mapRef = useRef<MapRef>(null);
   const { theme } = useTheme();
   const [popupEntry, setPopupEntry] = useState<Entry | null>(null);
+  const [panelPos, setPanelPos] = useState<{
+    left: number;
+    top?: number;
+    bottom?: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [suggestPrompt, setSuggestPrompt] = useState<{
     lat: number;
@@ -261,6 +301,8 @@ export function EntryMap({
 
   const mappableEntries = entries.filter(hasCoordinates);
   const mappableIdsKey = mappableEntries.map((e) => e.id).join("|");
+  const mappableRef = useRef(mappableEntries);
+  mappableRef.current = mappableEntries;
 
   // Keep Mapbox in sync when the mobile expand/collapse changes the shell size
   useEffect(() => {
@@ -354,17 +396,141 @@ export function EntryMap({
     if (!onSuggestAt) setSuggestPrompt(null);
   }, [onSuggestAt]);
 
+  const focusPinNearCard = useCallback(
+    (entry: Entry) => {
+      if (!hasCoordinates(entry) || pinMode) return;
+      const map = mapRef.current?.getMap();
+      const w = map?.getContainer().clientWidth ?? 600;
+      const h = map?.getContainer().clientHeight ?? 400;
+      const mobile = window.matchMedia("(max-width: 1023px)").matches;
+
+      if (mobile) {
+        // Keep pin in the clear band above the bottom sheet
+        const bottomPad = Math.round(
+          Math.min(Math.max(h * 0.52, 220), h * 0.62)
+        );
+        mapRef.current?.flyTo({
+          center: [entry.lng!, entry.lat!],
+          zoom: Math.max(mapRef.current.getZoom() ?? DEFAULT_ZOOM, 13.5),
+          duration: 700,
+          padding: { top: 40, bottom: bottomPad, left: 28, right: 28 },
+          essential: true,
+        });
+        return;
+      }
+
+      // Desktop: leave a pocket to the right of the pin for the detail card
+      const rightPad = Math.round(Math.min(Math.max(w * 0.28, 180), 300));
+      mapRef.current?.flyTo({
+        center: [entry.lng!, entry.lat!],
+        zoom: Math.max(mapRef.current.getZoom() ?? DEFAULT_ZOOM, 13.5),
+        duration: 700,
+        padding: { top: 56, bottom: 56, left: 48, right: rightPad },
+        essential: true,
+      });
+    },
+    [pinMode]
+  );
+
+  const updatePanelPos = useCallback(() => {
+    if (!popupEntry || !hasCoordinates(popupEntry)) {
+      setPanelPos(null);
+      return;
+    }
+    const map = mapRef.current?.getMap();
+    const shell = shellRef.current;
+    if (!map || !shell) return;
+
+    const shellW = shell.clientWidth;
+    const shellH = shell.clientHeight;
+    const margin = 12;
+    const mobile = window.matchMedia("(max-width: 1023px)").matches;
+
+    if (mobile) {
+      // Bottom-centered sheet with a hard height cap (dvh/% fail when parent height is auto)
+      const width = Math.min(340, shellW - 24);
+      const left = Math.round((shellW - width) / 2);
+      const maxHeight = Math.min(360, Math.round(shellH * 0.42));
+      const bottom = 88; // clear of browse arrows
+      const next = { left, bottom, width, maxHeight };
+      setPanelPos((prev) =>
+        prev &&
+        prev.left === next.left &&
+        prev.bottom === next.bottom &&
+        prev.width === next.width &&
+        prev.maxHeight === next.maxHeight
+          ? prev
+          : next
+      );
+      return;
+    }
+
+    const pin = mapPinPosition(popupEntry, mappableRef.current);
+    const pt = map.project([pin.lng, pin.lat]);
+    const width = Math.min(340, Math.max(260, shellW - 24));
+    const gap = 28;
+
+    // Prefer just to the right of the pin; flip left if it would clip
+    let left = pt.x + gap;
+    if (left + width > shellW - margin) {
+      left = pt.x - gap - width;
+    }
+    left = Math.max(margin, Math.min(left, shellW - width - margin));
+
+    const maxHeight = Math.min(460, Math.round(shellH * 0.85));
+    const cardH = Math.min(
+      panelRef.current?.offsetHeight || 360,
+      maxHeight
+    );
+    let top = pt.y - cardH / 2;
+    top = Math.max(margin, Math.min(top, shellH - cardH - margin));
+
+    const next = {
+      left: Math.round(left),
+      top: Math.round(top),
+      width,
+      maxHeight,
+    };
+    setPanelPos((prev) =>
+      prev &&
+      prev.left === next.left &&
+      prev.top === next.top &&
+      prev.width === next.width &&
+      prev.maxHeight === next.maxHeight
+        ? prev
+        : next
+    );
+  }, [popupEntry]);
+
+  useEffect(() => {
+    if (!popupEntry || !mapReady || pinMode) {
+      setPanelPos(null);
+      return;
+    }
+    updatePanelPos();
+    const raf = window.requestAnimationFrame(() => updatePanelPos());
+    const map = mapRef.current?.getMap();
+    if (!map) {
+      return () => window.cancelAnimationFrame(raf);
+    }
+    map.on("move", updatePanelPos);
+    map.on("zoom", updatePanelPos);
+    map.on("resize", updatePanelPos);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      map.off("move", updatePanelPos);
+      map.off("zoom", updatePanelPos);
+      map.off("resize", updatePanelPos);
+    };
+  }, [popupEntry, mapReady, pinMode, updatePanelPos]);
+
   useEffect(() => {
     if (flyToEntry && hasCoordinates(flyToEntry) && !pinMode) {
-      mapRef.current?.flyTo({
-        center: [flyToEntry.lng!, flyToEntry.lat!],
-        zoom: 14,
-        duration: 800,
-      });
       setPopupEntry(flyToEntry);
       setHoveredId(null);
+      focusPinNearCard(flyToEntry);
     }
-  }, [flyToEntry, pinMode]);
+  }, [flyToEntry, pinMode, focusPinNearCard]);
 
   useEffect(() => {
     if (draftPin && pinMode) {
@@ -383,8 +549,35 @@ export function EntryMap({
       onSelect(entry);
       setPopupEntry(entry);
       setHoveredId(null);
+      focusPinNearCard(entry);
     },
-    [onSelect, pinMode]
+    [onSelect, pinMode, focusPinNearCard]
+  );
+
+  const browseIndex = popupEntry
+    ? mappableEntries.findIndex((e) => e.id === popupEntry.id)
+    : -1;
+
+  const browseTo = useCallback(
+    (delta: number) => {
+      if (pinMode || browseIndex < 0 || mappableEntries.length < 2) return;
+      const nextIndex =
+        (browseIndex + delta + mappableEntries.length) % mappableEntries.length;
+      const next = mappableEntries[nextIndex];
+      if (!next) return;
+      setSuggestPrompt(null);
+      setPopupEntry(next);
+      onSelect(next);
+      setHoveredId(null);
+      focusPinNearCard(next);
+    },
+    [
+      pinMode,
+      browseIndex,
+      mappableEntries,
+      onSelect,
+      focusPinNearCard,
+    ]
   );
 
   const dismissSuggestPrompt = useCallback(() => {
@@ -502,6 +695,11 @@ export function EntryMap({
                 <MapPin
                   entry={entry}
                   isSelected={isSelected}
+                  isViewed={viewedIds?.has(entry.id)}
+                  isDimmed={
+                    focusedCategories.length > 0 &&
+                    !focusedCategories.includes(entry.category)
+                  }
                   showTooltip={showTooltip}
                   enter={enter}
                   onHoverChange={(hovering) =>
@@ -534,31 +732,6 @@ export function EntryMap({
               />
             </div>
           </Marker>
-        )}
-
-        {!pinMode && popupEntry && hasCoordinates(popupEntry) && (
-          <Popup
-            latitude={mapPinPosition(popupEntry, mappableEntries).lat}
-            longitude={mapPinPosition(popupEntry, mappableEntries).lng}
-            anchor="top"
-            onClose={() => {
-              setPopupEntry(null);
-              onSelect(null);
-            }}
-            closeOnClick={false}
-            closeButton={false}
-            maxWidth="360px"
-            offset={20}
-            className="entry-map-popup"
-          >
-            <MapPopupCard
-              entry={popupEntry}
-              onClose={() => {
-                setPopupEntry(null);
-                onSelect(null);
-              }}
-            />
-          </Popup>
         )}
 
         {!pinMode && suggestPrompt && onSuggestAt && (
@@ -620,6 +793,87 @@ export function EntryMap({
         )}
       </Map>
 
+      {/* Detail card anchored next to the selected pin (screen-space) */}
+      {!pinMode && popupEntry && panelPos && (
+        <>
+          {mappableEntries.length > 1 && (
+            <>
+              {/* Mobile: bottom-center pair */}
+              <div className="pointer-events-auto absolute bottom-3 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => browseTo(-1)}
+                  aria-label="Previous spot"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={() => browseTo(1)}
+                  aria-label="Next spot"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash"
+                >
+                  ›
+                </button>
+              </div>
+              {/* Desktop: left / right edges */}
+              <button
+                type="button"
+                onClick={() => browseTo(-1)}
+                aria-label="Previous spot"
+                className="pointer-events-auto absolute left-3 top-1/2 z-50 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash lg:flex"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() => browseTo(1)}
+                aria-label="Next spot"
+                className="pointer-events-auto absolute right-3 top-1/2 z-50 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash lg:flex"
+              >
+                ›
+              </button>
+            </>
+          )}
+          <div
+            className="pointer-events-none absolute z-40"
+            style={
+              panelPos.bottom != null
+                ? {
+                    left: panelPos.left,
+                    bottom: panelPos.bottom,
+                    width: panelPos.width,
+                  }
+                : {
+                    left: panelPos.left,
+                    top: panelPos.top,
+                    width: panelPos.width,
+                  }
+            }
+          >
+            <div
+              ref={panelRef}
+              className="map-detail-panel pointer-events-auto overflow-y-auto overflow-x-hidden hide-scrollbar rounded-2xl border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
+              style={{ maxHeight: panelPos.maxHeight }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MapPopupCard
+                entry={popupEntry}
+                onClose={() => {
+                  setPopupEntry(null);
+                  onSelect(null);
+                }}
+                onPrev={() => browseTo(-1)}
+                onNext={() => browseTo(1)}
+                browseIndex={browseIndex >= 0 ? browseIndex : undefined}
+                browseTotal={mappableEntries.length}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
       {!pinMode && (
         <ViewerTicker className="absolute left-2 top-[4.5rem] z-20 sm:left-3 lg:top-3" />
       )}
@@ -646,30 +900,6 @@ export function EntryMap({
           )}
         </div>
       )}
-
-      <div className="pointer-events-none absolute bottom-16 right-3 z-10 hidden flex-wrap items-center justify-end gap-x-3 gap-y-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink shadow-sm sm:bottom-16 sm:flex">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="pin-event inline-flex h-5 w-5 items-center justify-center rounded-full border-0 text-white">
-            <EventPinIcon className="h-3 w-3" />
-          </span>
-          Events
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-white"
-            style={{ backgroundColor: MAP_PIN_COLORS.place }}
-          >
-            <PlacePinIcon className="h-3 w-3" />
-          </span>
-          Spots
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="pin-pending inline-flex h-5 w-5 items-center justify-center rounded-full border-0 text-white ring-1 ring-dashed ring-white/70">
-            <PlacePinIcon className="h-3 w-3" />
-          </span>
-          Pending
-        </span>
-      </div>
 
       {!pinMode && <FloatingSprites />}
       {!pinMode && <KohCompanion className="hidden sm:flex" />}

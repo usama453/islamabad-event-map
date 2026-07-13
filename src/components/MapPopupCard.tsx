@@ -1,24 +1,30 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORY_LABELS } from "@/lib/constants";
-import type { Entry } from "@/lib/types";
+import type { Comment, Entry } from "@/lib/types";
 import {
   entryBodyText,
   entryContactPhone,
   entryOrganizerName,
   formatEventSchedule,
-  getEntryImage,
+  getEntryImages,
   happeningSoonLabel,
-  hasCoordinates,
   truncate,
 } from "@/lib/utils";
+import { categoryColor } from "@/components/CategoryIcon";
 
 interface MapPopupCardProps {
   entry: Entry;
   onClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  browseIndex?: number;
+  browseTotal?: number;
 }
+
+const COMMENT_PREVIEW = 2;
 
 function seedCount(id: string, base: number, span: number): number {
   let hash = 0;
@@ -28,16 +34,58 @@ function seedCount(id: string, base: number, span: number): number {
   return base + (hash % span);
 }
 
-export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
-  const [registered, setRegistered] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [reviewText, setReviewText] = useState("");
-  const [reviewSaved, setReviewSaved] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+/** Instagram-style relative time: 5m, 2h, 3d */
+function formatCommentTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
-  const image = getEntryImage(entry);
+function avatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  const hues = [12, 32, 160, 200, 260, 320];
+  const h = hues[hash % hues.length];
+  return `hsl(${h} 55% 42%)`;
+}
+
+export function MapPopupCard({
+  entry,
+  onClose,
+  onPrev,
+  onNext,
+  browseIndex,
+  browseTotal = 0,
+}: MapPopupCardProps) {
+  const [liked, setLiked] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [authorName, setAuthorName] = useState("");
+  const [namePromptOpen, setNamePromptOpen] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const images = useMemo(() => getEntryImages(entry), [entry]);
+  const image = images[0]!;
+  const hasMultiplePhotos = images.length > 1;
   const schedule = formatEventSchedule(entry);
   const body = entryBodyText(entry);
   const contactPhone = entryContactPhone(entry);
@@ -45,31 +93,92 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
   const isEvent = entry.type === "event";
   const isPending = entry.status === "pending";
   const soonLabel = isEvent && !isPending ? happeningSoonLabel(entry) : null;
-  const goingBase = useMemo(() => seedCount(entry.id, 12, 48), [entry.id]);
   const likeBase = useMemo(() => seedCount(entry.id + "♥", 8, 90), [entry.id]);
-  const reviewBase = useMemo(
-    () => seedCount(entry.id + "★", 3, 18),
-    [entry.id]
-  );
-
-  const goingCount = goingBase + (registered ? 1 : 0);
   const likeCount = likeBase + (liked ? 1 : 0);
 
-  const mapsUrl =
-    hasCoordinates(entry)
-      ? `https://www.google.com/maps/dir/?api=1&destination=${entry.lat},${entry.lng}`
-      : entry.locationText
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.locationText)}`
-        : null;
+  const visibleComments = commentsExpanded
+    ? comments
+    : comments.slice(0, COMMENT_PREVIEW);
+  const hiddenCount = Math.max(0, comments.length - COMMENT_PREVIEW);
 
   useEffect(() => {
-    setRegistered(false);
     setLiked(false);
-    setSaved(false);
-    setReviewOpen(false);
+    setGalleryOpen(false);
+    setGalleryIndex(0);
     setReviewText("");
-    setReviewSaved(false);
+    setAuthorName("");
+    setNamePromptOpen(false);
+    setComments([]);
+    setCommentsExpanded(false);
     setToast(null);
+  }, [entry.id]);
+
+  useEffect(() => {
+    if (!namePromptOpen) return;
+    const t = window.setTimeout(() => nameInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(t);
+  }, [namePromptOpen]);
+
+  const canBrowse = browseTotal > 1 && onPrev && onNext;
+
+  useEffect(() => {
+    if (!galleryOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setGalleryOpen(false);
+      if (e.key === "ArrowRight" && images.length > 1) {
+        setGalleryIndex((i) => (i + 1) % images.length);
+      }
+      if (e.key === "ArrowLeft" && images.length > 1) {
+        setGalleryIndex((i) => (i - 1 + images.length) % images.length);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [galleryOpen, images.length]);
+
+  useEffect(() => {
+    if (!canBrowse || galleryOpen || namePromptOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        onNext();
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        onPrev();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canBrowse, galleryOpen, namePromptOpen, onNext, onPrev]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCommentsLoading(true);
+    fetch(`/api/comments?entryId=${encodeURIComponent(entry.id)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setComments(Array.isArray(data.comments) ? data.comments : []);
+      })
+      .catch(() => {
+        if (!cancelled) setComments([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCommentsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [entry.id]);
 
   useEffect(() => {
@@ -101,48 +210,145 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
     }
   };
 
+  const requestPost = () => {
+    if (!reviewText.trim() || posting) return;
+    setNamePromptOpen(true);
+  };
+
+  const postComment = async () => {
+    const text = reviewText.trim();
+    if (!text || posting) return;
+    setPosting(true);
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entryId: entry.id,
+          body: text,
+          authorName: authorName.trim() || undefined,
+          website: "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        flash(data.error || "Could not post comment");
+        return;
+      }
+      if (data.comment) {
+        setComments((prev) => [data.comment as Comment, ...prev]);
+        setCommentsExpanded(true);
+      }
+      setReviewText("");
+      setNamePromptOpen(false);
+      flash(
+        authorName.trim()
+          ? "Comment posted"
+          : `Posted as ${data.comment?.authorName ?? "guest"}`
+      );
+    } catch {
+      flash("Could not post comment");
+    } finally {
+      setPosting(false);
+    }
+  };
+
   return (
     <div
-      className="map-popup-card w-[320px] overflow-hidden sm:w-[340px]"
+      className="map-popup-card relative w-full overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="relative h-[140px] w-full bg-line">
-        <Image
-          src={image}
-          alt=""
-          fill
-          className="object-cover"
-          sizes="340px"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+        <button
+          type="button"
+          onClick={() => {
+            setGalleryIndex(0);
+            setGalleryOpen(true);
+          }}
+          aria-label={
+            hasMultiplePhotos
+              ? `View ${images.length} photos`
+              : "View photo"
+          }
+          className="absolute inset-0 z-0 block cursor-pointer [&_img]:pointer-events-none"
+        >
+          <Image
+            src={image}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="340px"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+        </button>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/45 text-sm text-white backdrop-blur-sm transition hover:bg-black/60"
+          className="absolute right-2 top-2 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-xl leading-none text-white backdrop-blur-sm transition hover:bg-black/65"
         >
           ×
         </button>
         <span
-          className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white ${
+          className={`pointer-events-none absolute left-3 top-3 z-10 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white ${
             isPending
               ? "bg-[var(--pending)]"
               : isEvent
                 ? "bg-[var(--orange)]"
-                : "bg-[var(--blue)]"
+                : ""
           }`}
+          style={
+            !isPending && !isEvent
+              ? { backgroundColor: categoryColor(entry.category) }
+              : undefined
+          }
         >
-          {isEvent ? "Event" : "Place"} · {CATEGORY_LABELS[entry.category]}
+          {isEvent ? "Event" : "Spot"} · {CATEGORY_LABELS[entry.category]}
         </span>
-        <div className="absolute bottom-3 left-3 right-3">
+        {hasMultiplePhotos && (
+          <span className="pointer-events-none absolute right-2 bottom-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+            <GalleryIcon />
+            1/{images.length}
+          </span>
+        )}
+        <div className="pointer-events-none absolute bottom-3 left-3 right-14 z-10">
           <h3 className="text-[17px] font-semibold leading-snug text-white drop-shadow">
             {entry.title}
           </h3>
         </div>
       </div>
 
-      <div className="space-y-3 bg-surface p-3.5">
-        <div className="space-y-1 text-sm">
+      <div className="bg-surface">
+        {/* Instagram-style actions */}
+        <div className="flex items-center gap-4 px-3.5 pt-3">
+          <IgAction
+            label={liked ? "Unlike" : "Like"}
+            onClick={() => setLiked((v) => !v)}
+          >
+            <HeartIcon filled={liked} className={liked ? "text-[#ed4956]" : ""} />
+          </IgAction>
+          <IgAction
+            label="Comment"
+            onClick={() => commentInputRef.current?.focus()}
+          >
+            <CommentIcon />
+          </IgAction>
+          <IgAction
+            label="Share"
+            onClick={() => {
+              void share();
+            }}
+          >
+            <ShareIcon />
+          </IgAction>
+        </div>
+
+        <p className="px-3.5 pt-2 text-sm font-semibold text-ink">
+          {likeCount.toLocaleString()} likes
+        </p>
+
+        {/* Caption / details */}
+        <div className="space-y-1 px-3.5 pt-2 text-sm">
           {isPending && (
             <p className="mb-1 rounded-lg border border-dashed border-[color-mix(in_srgb,var(--pending)_45%,transparent)] bg-[var(--pending-soft)] px-2.5 py-1.5 text-xs font-medium text-[var(--pending-deep)]">
               Awaiting admin review — not verified yet.
@@ -154,8 +360,17 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
               {soonLabel}
             </span>
           )}
-          {organizer && (
-            <p className="font-medium text-ink">by {organizer}</p>
+          {(organizer || body) && (
+            <p className="leading-snug text-ink">
+              {organizer && (
+                <span className="font-semibold">{organizer} </span>
+              )}
+              {body && (
+                <span className="font-normal text-ink">
+                  {truncate(body, 160)}
+                </span>
+              )}
+            </p>
           )}
           {isEvent && (
             <p className="font-medium entry-meta-event">
@@ -174,192 +389,306 @@ export function MapPopupCard({ entry, onClose }: MapPopupCardProps) {
               {contactPhone}
             </a>
           )}
-          {body && (
-            <p className="pt-0.5 leading-relaxed text-ink-muted">
-              {truncate(body, 160)}
+        </div>
+
+        {/* Comments list */}
+        <div className="px-3.5 pt-3">
+          {commentsLoading && comments.length === 0 ? (
+            <p className="pb-2 text-[12px] text-ink-muted">Loading comments…</p>
+          ) : comments.length === 0 ? (
+            <p className="pb-2 text-[12px] text-ink-muted">
+              No comments yet.
             </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-muted">
-          {isEvent && (
-            <span>
-              <strong className="font-semibold text-ink">{goingCount}</strong>{" "}
-              registered
-            </span>
-          )}
-          <span>
-            <strong className="font-semibold text-ink">{likeCount}</strong> likes
-          </span>
-          <span>
-            <strong className="font-semibold text-ink">
-              {reviewBase + (reviewSaved ? 1 : 0)}
-            </strong>{" "}
-            reviews
-          </span>
-        </div>
-
-        {/* Primary CTA */}
-        <button
-          type="button"
-          onClick={() => {
-            if (isEvent) {
-              setRegistered((v) => !v);
-              flash(
-                registered
-                  ? "Registration cancelled (demo)"
-                  : "Registered — see you there! (demo)"
-              );
-            } else {
-              setSaved((v) => !v);
-              flash(saved ? "Removed from saved" : "Saved to your list (demo)");
-            }
-          }}
-          className={`btn-primary flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${
-            (isEvent && registered) || (!isEvent && saved) ? "opacity-95" : ""
-          }`}
-        >
-          {isEvent ? (
-            registered ? (
-              <>Registered ✓</>
-            ) : (
-              <>Register now</>
-            )
-          ) : saved ? (
-            <>Saved ✓</>
           ) : (
-            <>Save this spot</>
+            <>
+              {hiddenCount > 0 && !commentsExpanded && (
+                <button
+                  type="button"
+                  onClick={() => setCommentsExpanded(true)}
+                  className="mb-2 text-[13px] text-ink-muted hover:text-ink"
+                >
+                  View all {comments.length} comments
+                </button>
+              )}
+              <ul
+                className={`space-y-3 ${
+                  commentsExpanded
+                    ? "max-h-44 overflow-y-auto hide-scrollbar pb-1"
+                    : "pb-1"
+                }`}
+              >
+                {visibleComments.map((c) => (
+                  <li key={c.id} className="flex gap-2.5">
+                    <span
+                      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      style={{ backgroundColor: avatarColor(c.authorName) }}
+                      aria-hidden
+                    >
+                      {c.authorName.charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm leading-snug text-ink">
+                        <span className="font-semibold">{c.authorName}</span>{" "}
+                        <span className="font-normal">{c.body}</span>
+                      </p>
+                      <p className="mt-1 text-[11px] text-ink-muted">
+                        {formatCommentTime(c.createdTime)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {commentsExpanded && comments.length > COMMENT_PREVIEW && (
+                <button
+                  type="button"
+                  onClick={() => setCommentsExpanded(false)}
+                  className="mt-1 mb-1 text-[12px] text-ink-muted hover:text-ink"
+                >
+                  Show less
+                </button>
+              )}
+            </>
           )}
-        </button>
-
-        {/* Icon actions */}
-        <div className="flex items-center justify-between gap-1">
-          <IconAction
-            label={liked ? "Unlike" : "Like"}
-            active={liked}
-            onClick={() => {
-              setLiked((v) => !v);
-              flash(liked ? "Like removed" : "Liked");
-            }}
-          >
-            <HeartIcon filled={liked} />
-          </IconAction>
-
-          <IconAction
-            label="Comment"
-            active={reviewOpen || reviewSaved}
-            onClick={() => {
-              setReviewOpen((v) => !v);
-              setToast(null);
-            }}
-          >
-            <CommentIcon />
-          </IconAction>
-
-          <IconAction
-            label="Share"
-            onClick={() => {
-              void share();
-            }}
-          >
-            <ShareIcon />
-          </IconAction>
-
-          <IconAction
-            label="Directions"
-            disabled={!mapsUrl}
-            onClick={() => {
-              if (!mapsUrl) return;
-              window.open(mapsUrl, "_blank", "noopener,noreferrer");
-              flash("Opening directions…");
-            }}
-          >
-            <DirectionsIcon />
-          </IconAction>
-
-          <IconAction
-            label={saved ? "Unsave" : "Save"}
-            active={saved}
-            onClick={() => {
-              setSaved((v) => !v);
-              flash(saved ? "Removed from saved" : "Saved (demo)");
-            }}
-          >
-            <BookmarkIcon filled={saved} />
-          </IconAction>
         </div>
-
-        {reviewOpen && (
-          <div className="space-y-2 rounded-lg border border-line bg-wash p-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-              Leave a comment
-            </p>
-            <textarea
-              value={reviewText}
-              onChange={(e) => setReviewText(e.target.value)}
-              rows={3}
-              placeholder="What did you think? (demo only — not saved)"
-              className="w-full resize-none rounded-lg border border-line-strong bg-surface px-2.5 py-2 text-sm text-ink outline-none focus:border-[var(--ring)]"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setReviewOpen(false);
-                  setReviewText("");
-                }}
-                className="px-2.5 py-1.5 text-sm text-ink-muted hover:text-ink"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!reviewText.trim()}
-                onClick={() => {
-                  setReviewSaved(true);
-                  setReviewOpen(false);
-                  flash("Comment posted (demo)");
-                }}
-                className="btn-primary rounded-full border px-3 py-1.5 text-sm font-semibold disabled:opacity-40"
-              >
-                Post
-              </button>
-            </div>
-          </div>
-        )}
 
         {entry.sourceUrl && (
           <a
             href={entry.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block text-sm font-medium text-ink underline-offset-2 hover:underline"
+            className="mx-3.5 mb-1 inline-block text-sm font-medium text-ink underline-offset-2 hover:underline"
           >
             View source →
           </a>
         )}
 
         {toast && (
-          <p className="rounded-lg bg-wash px-2.5 py-1.5 text-center text-[12px] font-medium text-ink">
+          <p className="mx-3.5 mb-2 rounded-lg bg-wash px-2.5 py-1.5 text-center text-[12px] font-medium text-ink">
             {toast}
           </p>
         )}
+
+        {/* Instagram-style compose bar */}
+        <div className="mt-1 border-t border-line px-3.5 py-2.5">
+          <div className="flex items-center gap-2">
+            <input
+              ref={commentInputRef}
+              type="text"
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+              maxLength={500}
+              placeholder="Add a comment..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  requestPost();
+                }
+              }}
+              className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
+            />
+            <button
+              type="button"
+              disabled={!reviewText.trim() || posting}
+              onClick={requestPost}
+              className="shrink-0 text-sm font-semibold text-[var(--blue)] disabled:opacity-35"
+            >
+              Post
+            </button>
+          </div>
+        </div>
       </div>
+
+      {galleryOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex flex-col bg-black/92"
+          onClick={(e) => {
+            e.stopPropagation();
+            setGalleryOpen(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo gallery"
+        >
+          <div className="flex items-center justify-between px-3 py-3 text-white sm:px-4">
+            <p className="text-sm font-semibold tabular-nums">
+              {galleryIndex + 1} / {images.length}
+            </p>
+            <button
+              type="button"
+              onClick={() => setGalleryOpen(false)}
+              aria-label="Close gallery"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-xl leading-none transition hover:bg-white/25"
+            >
+              ×
+            </button>
+          </div>
+
+          <div
+            className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {hasMultiplePhotos && (
+              <button
+                type="button"
+                aria-label="Previous photo"
+                onClick={() =>
+                  setGalleryIndex(
+                    (i) => (i - 1 + images.length) % images.length
+                  )
+                }
+                className="absolute left-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-xl text-white transition hover:bg-white/25 sm:left-4"
+              >
+                ‹
+              </button>
+            )}
+            <div className="relative h-full max-h-[75dvh] w-full max-w-3xl">
+              <Image
+                src={images[galleryIndex]!}
+                alt=""
+                fill
+                className="object-contain"
+                sizes="100vw"
+                priority
+              />
+            </div>
+            {hasMultiplePhotos && (
+              <button
+                type="button"
+                aria-label="Next photo"
+                onClick={() =>
+                  setGalleryIndex((i) => (i + 1) % images.length)
+                }
+                className="absolute right-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-xl text-white transition hover:bg-white/25 sm:right-4"
+              >
+                ›
+              </button>
+            )}
+          </div>
+
+          {hasMultiplePhotos && (
+            <div
+              className="flex justify-center gap-1.5 px-3 pb-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {images.map((src, i) => (
+                <button
+                  key={`${src}-${i}`}
+                  type="button"
+                  aria-label={`Photo ${i + 1}`}
+                  aria-current={i === galleryIndex}
+                  onClick={() => setGalleryIndex(i)}
+                  className={`h-1.5 rounded-full transition ${
+                    i === galleryIndex
+                      ? "w-5 bg-white"
+                      : "w-1.5 bg-white/40 hover:bg-white/70"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {namePromptOpen && (
+        <div
+          className="absolute inset-0 z-50 flex items-end justify-center bg-black/45 p-3 sm:items-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!posting) setNamePromptOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-[300px] rounded-2xl border border-line bg-surface p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="comment-name-title"
+          >
+            <h4
+              id="comment-name-title"
+              className="text-base font-semibold text-ink"
+            >
+              Enter your name
+            </h4>
+            <p className="mt-1 text-[13px] text-ink-muted">
+              Leave it blank and we’ll pick a fun name for you.
+            </p>
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={authorName}
+              onChange={(e) => setAuthorName(e.target.value)}
+              maxLength={40}
+              placeholder="Your name"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void postComment();
+                }
+                if (e.key === "Escape" && !posting) {
+                  setNamePromptOpen(false);
+                }
+              }}
+              className="mt-3 w-full rounded-xl border border-line-strong bg-wash px-3 py-2.5 text-sm text-ink outline-none focus:border-[var(--ring)]"
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={posting}
+                onClick={() => setNamePromptOpen(false)}
+                className="rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted hover:text-ink"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={posting}
+                onClick={() => {
+                  void postComment();
+                }}
+                className="btn-primary rounded-full border px-4 py-1.5 text-sm font-semibold disabled:opacity-50"
+              >
+                {posting ? "Posting…" : "Post comment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function IconAction({
+function GalleryIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden>
+      <rect
+        x="3"
+        y="5"
+        width="14"
+        height="12"
+        rx="1.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M7 17v1.5A1.5 1.5 0 0 0 8.5 20H19a2 2 0 0 0 2-2V8.5A1.5 1.5 0 0 0 19.5 7H18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IgAction({
   children,
   label,
-  active,
-  disabled,
   onClick,
 }: {
   children: React.ReactNode;
   label: string;
-  active?: boolean;
-  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -367,22 +696,29 @@ function IconAction({
       type="button"
       aria-label={label}
       title={label}
-      disabled={disabled}
       onClick={onClick}
-      className={`flex h-10 w-10 items-center justify-center rounded-full border transition ${
-        active
-          ? "btn-primary btn-primary-selected"
-          : "border-line-strong text-ink hover:bg-wash disabled:cursor-not-allowed disabled:opacity-35"
-      }`}
+      className="flex h-8 w-8 items-center justify-center text-ink transition hover:opacity-60 active:opacity-40"
     >
       {children}
     </button>
   );
 }
 
-function HeartIcon({ filled }: { filled?: boolean }) {
+function HeartIcon({
+  filled,
+  className = "",
+}: {
+  filled?: boolean;
+  className?: string;
+}) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      width="24"
+      height="24"
+      aria-hidden
+      className={className}
+    >
       <path
         d="M12 20.4s-6.8-4.2-9.2-8.1C1.2 9.6 2 6.4 5 5.4c1.9-.6 3.8.2 4.9 1.7C11.1 5.6 13 .8 15 5.4c3 1 3.8 4.2 2.2 7-2.4 3.9-5.2 8-5.2 8Z"
         fill={filled ? "currentColor" : "none"}
@@ -396,9 +732,9 @@ function HeartIcon({ filled }: { filled?: boolean }) {
 
 function CommentIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden>
       <path
-        d="M5 5.5h14a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2H10l-4.5 3.2V16H5a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2Z"
+        d="M20.656 17.008a9.993 9.993 0 1 0-3.59 3.615L22 22Z"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
@@ -410,51 +746,21 @@ function CommentIcon() {
 
 function ShareIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
-      <circle cx="18" cy="5" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="6" cy="12" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="18" cy="19" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden>
       <path
-        d="M8.2 10.8 15.7 6.4M8.2 13.2l7.5 4.4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function DirectionsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
-      <path
-        d="M12 3.5 20.5 12 12 20.5 3.5 12 12 3.5Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 8v5.5h3.5"
+        d="M22 2 11 13"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function BookmarkIcon({ filled }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
       <path
-        d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-3.5L6 20V5.5a1 1 0 0 1 1-1Z"
-        fill={filled ? "currentColor" : "none"}
+        d="M22 2 15 22l-4-9-9-4 20-7Z"
+        fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
