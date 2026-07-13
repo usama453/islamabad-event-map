@@ -38,9 +38,9 @@ export function HomePage() {
   const [allEntries, setAllEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewFilter, setViewFilter] = useState<ViewFilter>("place");
+  const [viewFilter] = useState<ViewFilter>("place");
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
-  const [dateFilter, setDateFilter] = useState<DateFilter>("upcoming");
+  const [dateFilter] = useState<DateFilter>("upcoming");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [flyToEntry, setFlyToEntry] = useState<Entry | null>(null);
   const [showSubmit, setShowSubmit] = useState(false);

@@ -66,7 +66,6 @@ export function MapPopupCard({
   onClose,
   onPrev,
   onNext,
-  browseIndex,
   browseTotal = 0,
 }: MapPopupCardProps) {
   const [liked, setLiked] = useState(false);
