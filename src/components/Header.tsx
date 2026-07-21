@@ -46,7 +46,6 @@ interface HeaderProps {
 export function Header({
   variant = "bar",
   listingCount,
-  viewFilter = "place",
   showThemeToggle = true,
 }: HeaderProps) {
   if (variant === "sidebar") {

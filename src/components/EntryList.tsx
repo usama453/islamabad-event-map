@@ -34,7 +34,6 @@ export function EntryList({
   selectedId,
   onSelect,
   loading,
-  viewFilter,
   animateIn = false,
   viewedIds,
   focusedCategories = [],
