@@ -271,7 +271,7 @@ export async function createPendingEntry(
     const created = await tryCreate(baseFields);
     record = created[0];
   } catch (error) {
-    let fields: FieldSet = { ...baseFields };
+    const fields: FieldSet = { ...baseFields };
     let changed = false;
 
     if (isUnknownFieldError(error, "Organizer")) {

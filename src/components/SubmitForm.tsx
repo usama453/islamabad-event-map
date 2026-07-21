@@ -47,7 +47,6 @@ interface SubmitFormProps {
 
 export function SubmitForm({
   onSuccess,
-  defaultType = "place",
   lockType = false,
   compact = false,
   lat: controlledLat,

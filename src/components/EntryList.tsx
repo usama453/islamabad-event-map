@@ -22,7 +22,7 @@ interface EntryListProps {
   onAdd?: () => void;
 }
 
-function emptyCopy(_viewFilter: ViewFilter): { title: string; body: string } {
+function emptyCopy(): { title: string; body: string } {
   return {
     title: "No spots yet",
     body: "No places match these filters — try another category, or add a café, trail, or hangout you know.",
@@ -94,7 +94,7 @@ export function EntryList({
   }
 
   if (entries.length === 0) {
-    const empty = emptyCopy(viewFilter);
+    const empty = emptyCopy();
     return (
       <div className="flex items-center gap-3 px-3 py-2">
         <KohMascot size={36} mood="look" interactive />

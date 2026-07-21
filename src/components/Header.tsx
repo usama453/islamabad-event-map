@@ -30,7 +30,7 @@ function MapLogo({ className = "" }: { className?: string }) {
   );
 }
 
-function listingCountLabel(count: number, _viewFilter: ViewFilter): string {
+function listingCountLabel(count: number): string {
   return `${count} spot${count !== 1 ? "s" : ""}`;
 }
 
@@ -70,7 +70,7 @@ export function Header({
                 </span>
                 {listingCount != null && (
                   <span className="text-[10px] font-medium tabular-nums text-ink-muted">
-                    · {listingCountLabel(listingCount, viewFilter)}
+                    · {listingCountLabel(listingCount)}
                   </span>
                 )}
               </span>

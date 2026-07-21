@@ -11,5 +11,6 @@ export function getAdminSecret(): string | null {
  * Re-enable the secret check before shipping.
  */
 export function isAdminAuthorized(_request: NextRequest): boolean {
+  void _request;
   return true;
 }

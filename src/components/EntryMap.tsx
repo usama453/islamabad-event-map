@@ -1004,7 +1004,6 @@ export function EntryMap({
       if (!hasCoordinates(entry) || pinMode) return;
       const map = mapRef.current?.getMap();
       const w = map?.getContainer().clientWidth ?? 600;
-      const h = map?.getContainer().clientHeight ?? 400;
       const mobile = window.matchMedia("(max-width: 1023px)").matches;
 
       if (mobile) {

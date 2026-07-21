@@ -29,7 +29,6 @@ export function FiltersBar({
   dateFilter,
   onDateFilterChange,
   availableCategories,
-  eventCount = 0,
   placeCount = 0,
   floating = false,
 }: FiltersBarProps) {
