@@ -4,15 +4,11 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EntryList } from "@/components/EntryList";
 import { Header } from "@/components/Header";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 import { CategoryStrip } from "@/components/CategoryStrip";
 import { SubmitForm } from "@/components/SubmitForm";
 import { AppSplash, QuietLoader } from "@/components/LoadingScreen";
-import {
-  hasSeenInterests,
-  InterestsModal,
-  loadSavedInterests,
-  saveInterests,
-} from "@/components/InterestsModal";
+import { InterestsModal, saveInterests } from "@/components/InterestsModal";
 import type { Category, DateFilter, ViewFilter } from "@/lib/constants";
 import { CATEGORIES } from "@/lib/constants";
 import type { Entry } from "@/lib/types";
@@ -48,6 +44,7 @@ export function HomePage() {
   const [exitPinModeSignal, setExitPinModeSignal] = useState(0);
   const [introReady, setIntroReady] = useState(false);
   const [sidebarReady, setSidebarReady] = useState(false);
+  const [launchCameraDone, setLaunchCameraDone] = useState(false);
   const [showInterests, setShowInterests] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [viewedIds, setViewedIds] = useState<Set<string>>(() => new Set());
@@ -57,7 +54,7 @@ export function HomePage() {
 
   useEffect(() => {
     setViewedIds(loadViewedEntryIds());
-    setSelectedCategories(loadSavedInterests());
+    // Always start on "All" — don't restore a previously saved category filter
   }, []);
 
   const loadEntries = useCallback(() => {
@@ -151,17 +148,22 @@ export function HomePage() {
   }, []);
 
   const handleIntroDone = useCallback(() => setIntroReady(true), []);
+  const handleLaunchCameraDone = useCallback(
+    () => setLaunchCameraDone(true),
+    []
+  );
 
-  // Map + pins first; sidebar arrives after a beat
+  // Map + pins first; sidebar arrives once the launch camera fly-through
+  // has settled into its final position (or right away if it never runs)
   useEffect(() => {
-    if (!introReady) return;
+    if (!introReady || !launchCameraDone) return;
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
-    const delay = reduceMotion ? 0 : 3000;
+    const delay = reduceMotion ? 0 : 300;
     const t = window.setTimeout(() => setSidebarReady(true), delay);
     return () => window.clearTimeout(t);
-  }, [introReady]);
+  }, [introReady, launchCameraDone]);
 
   const handleCategoriesChange = useCallback((categories: Category[]) => {
     setSelectedCategories(categories);
@@ -173,13 +175,13 @@ export function HomePage() {
     setShowInterests(false);
   }, []);
 
-  // Interests modal after the sidebar has arrived
-  useEffect(() => {
-    if (!sidebarReady || loading) return;
-    if (hasSeenInterests()) return;
-    const t = window.setTimeout(() => setShowInterests(true), 500);
-    return () => window.clearTimeout(t);
-  }, [sidebarReady, loading]);
+  // Interests modal disabled for now — kept in place so it's easy to re-enable.
+  // useEffect(() => {
+  //   if (!sidebarReady || loading) return;
+  //   if (hasSeenInterests()) return;
+  //   const t = window.setTimeout(() => setShowInterests(true), 500);
+  //   return () => window.clearTimeout(t);
+  // }, [sidebarReady, loading]);
 
   // Never leave the splash waiting forever if the fetch hangs
   useEffect(() => {
@@ -188,36 +190,14 @@ export function HomePage() {
     return () => window.clearTimeout(t);
   }, [loading]);
 
-  const spotSelected = Boolean(selectedId) && !showSubmit && !mapExpanded;
-
   return (
     <AppSplash ready={!loading} onIntroDone={handleIntroDone}>
       <InterestsModal
         open={showInterests}
         onContinue={handleInterestsContinue}
       />
-      <div className="flex h-dvh flex-col lg:flex-row">
-      {/* Brand bar — top of screen on mobile; inside sidebar on desktop */}
-      {sidebarReady && (
-        <div className="order-0 shrink-0 bg-surface lg:hidden">
-          <Header
-            variant="sidebar"
-            listingCount={filteredEntries.length}
-            viewFilter={viewFilter}
-          />
-        </div>
-      )}
-
-      {/* Map: full-bleed while pins drop in, then shares space with sidebar */}
-      <aside
-        className={`relative order-1 shrink-0 border-b border-line transition-[height,flex-grow,max-height] duration-500 ease-out lg:order-2 lg:h-full lg:min-w-0 lg:flex-1 lg:border-b-0 lg:border-l ${
-          mapExpanded || !sidebarReady
-            ? "min-h-0 flex-1 border-b-0 max-h-none lg:h-full"
-            : spotSelected
-              ? "min-h-0 flex-1 max-h-none lg:max-h-none"
-              : "h-[46%] min-h-[260px] max-h-[52%] lg:h-full lg:max-h-none"
-        }`}
-      >
+      <div className="relative h-dvh overflow-hidden">
+        {/* Full-bleed map */}
         <div className="absolute inset-0">
           <EntryMap
             entries={mapEntries}
@@ -235,62 +215,70 @@ export function HomePage() {
             animatePins={introReady}
             viewedIds={viewedIds}
             focusedCategories={selectedCategories}
+            onLaunchCameraDone={handleLaunchCameraDone}
           />
         </div>
+
+        {/* Top chrome — brand centered, controls on the sides */}
         {sidebarReady && (
-          <button
-            type="button"
-            onClick={() => setMapExpanded((v) => !v)}
-            aria-expanded={mapExpanded}
-            aria-label={mapExpanded ? "Collapse map" : "Expand map"}
-            className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink shadow-sm transition hover:bg-wash lg:hidden"
+          <div
+            className={`pointer-events-none absolute inset-x-0 top-0 z-30 px-2 pt-2 transition duration-500 ${
+              mapExpanded ? "opacity-90" : "opacity-100"
+            }`}
           >
-            {mapExpanded ? (
-              <>
-                <CollapseMapIcon />
-                Show list
-              </>
-            ) : (
-              <>
-                <ExpandMapIcon />
-                Expand map
-              </>
-            )}
-          </button>
+            <div className="relative flex h-10 items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setMapExpanded((v) => !v)}
+                aria-expanded={mapExpanded}
+                aria-label={mapExpanded ? "Show list" : "Expand map"}
+                className="pointer-events-auto relative z-10 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 text-xs font-semibold text-ink shadow-sm transition hover:bg-wash sm:px-3"
+              >
+                {mapExpanded ? (
+                  <>
+                    <CollapseMapIcon />
+                    <span className="hidden sm:inline">Show list</span>
+                  </>
+                ) : (
+                  <>
+                    <ExpandMapIcon />
+                    <span className="hidden sm:inline">Expand map</span>
+                  </>
+                )}
+              </button>
+
+              <div
+                className={`pointer-events-none absolute inset-x-0 flex justify-center transition duration-500 ${
+                  mapExpanded ? "opacity-0" : "opacity-100"
+                }`}
+              >
+                <div className="pointer-events-auto max-w-[min(100%,16.5rem)] overflow-hidden rounded-xl border border-line bg-surface shadow-sm sm:max-w-none">
+                  <Header
+                    variant="sidebar"
+                    listingCount={filteredEntries.length}
+                    viewFilter={viewFilter}
+                    showThemeToggle={false}
+                  />
+                </div>
+              </div>
+
+              <div className="pointer-events-auto relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface shadow-sm">
+                <DarkModeToggle />
+              </div>
+            </div>
+          </div>
         )}
-      </aside>
 
-      {/* List: slides in after the pin intro */}
-      <section
-        className={`relative order-2 min-w-0 flex-col overflow-hidden bg-surface transition-all duration-500 ease-out lg:order-1 ${
-          !sidebarReady
-            ? "pointer-events-none max-h-0 flex-none translate-y-6 opacity-0 lg:w-0 lg:max-w-0 lg:translate-x-[-16px] lg:translate-y-0 lg:border-0 lg:opacity-0"
-            : mapExpanded
-              ? "hidden lg:flex lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none lg:translate-x-0 lg:opacity-100"
-              : spotSelected
-                ? "flex min-h-0 max-h-[18vh] flex-none translate-y-0 opacity-100 lg:h-full lg:max-h-none lg:w-[32%] lg:max-w-[420px] lg:flex-none lg:translate-x-0"
-                : "flex min-h-0 flex-1 translate-y-0 opacity-100 lg:h-full lg:w-[32%] lg:max-w-[420px] lg:flex-none lg:translate-x-0"
-        }`}
-      >
-        <div className="hidden lg:block">
-          <Header
-            variant="sidebar"
-            listingCount={filteredEntries.length}
-            viewFilter={viewFilter}
-          />
-        </div>
-
-        {showSubmit ? (
-          <div className="hide-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-4">
-            <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3 sm:gap-3">
+        {/* Floating suggest form */}
+        {sidebarReady && showSubmit && (
+          <div className="pointer-events-auto absolute inset-x-3 bottom-3 z-40 max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-surface/95 p-3 shadow-[0_12px_40px_rgba(0,0,0,0.18)] backdrop-blur-md sm:inset-x-auto sm:left-3 sm:w-[min(420px,calc(100%-1.5rem))] sm:p-4">
+            <div className="mb-2 flex items-start justify-between gap-2">
               <div>
                 <h2 className="text-sm font-semibold text-ink sm:text-base">
-                  {viewFilter === "event" ? "Add an event" : "Add a spot"}
+                  Add a spot
                 </h2>
-                <p className="mt-0.5 text-xs text-ink-muted sm:text-sm">
-                  {viewFilter === "event"
-                    ? "Share a gig, market, meetup, or anything worth showing up for. It stays pending until verified."
-                    : "Share a café, trail, hangout, or hidden gem. It stays pending until verified."}
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Share a café, trail, hangout, or hidden gem.
                 </p>
               </div>
               <button
@@ -300,48 +288,55 @@ export function HomePage() {
                   setDraftPin(null);
                   setShowSubmit(false);
                 }}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink shadow-sm transition hover:border-ink-faint hover:bg-wash sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink"
               >
-                <span aria-hidden className="text-base leading-none">
-                  ×
-                </span>
-                Close
+                × Close
               </button>
             </div>
-            <div className="rounded-xl border border-line bg-wash p-3 sm:p-5">
-              <SubmitForm
-                compact
-                defaultType={suggestDefault}
-                lockType
-                lat={draftPin?.lat}
-                lng={draftPin?.lng}
-                exitPinModeSignal={exitPinModeSignal}
-                onLocationChange={(lat, lng) => {
-                  if (lat == null || lng == null) {
-                    setDraftPin(null);
-                  } else {
-                    setDraftPin({ lat, lng });
-                  }
-                }}
-                onPinModeChange={setPinMode}
-                onSuccess={() => {
+            <SubmitForm
+              compact
+              defaultType={suggestDefault}
+              lockType
+              lat={draftPin?.lat}
+              lng={draftPin?.lng}
+              exitPinModeSignal={exitPinModeSignal}
+              onLocationChange={(lat, lng) => {
+                if (lat == null || lng == null) {
                   setDraftPin(null);
-                  setPinMode(false);
-                  loadEntries();
-                }}
-              />
-            </div>
+                } else {
+                  setDraftPin({ lat, lng });
+                }
+              }}
+              onPinModeChange={setPinMode}
+              onSuccess={() => {
+                setDraftPin(null);
+                setPinMode(false);
+                loadEntries();
+              }}
+            />
           </div>
-        ) : (
-          <>
+        )}
+
+        {/* Floating bottom pieces — hide while a detail card is open */}
+        {sidebarReady && !showSubmit && !selectedId && (
+          <div
+            className={`pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-col gap-1.5 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-6 transition duration-500 ${
+              mapExpanded ? "translate-y-6 opacity-0" : "opacity-100"
+            }`}
+            style={{
+              background:
+                "linear-gradient(to top, color-mix(in srgb, var(--surface) 50%, transparent) 0%, transparent 100%)",
+            }}
+          >
             <CategoryStrip
               categories={availableCategories}
               selected={selectedCategories}
               onChange={handleCategoriesChange}
             />
-            <div className="hide-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-4 sm:py-4">
+
+            <div className="pointer-events-auto">
               {error ? (
-                <div className="rounded-xl bg-danger-soft px-3 py-4 text-center sm:px-4 sm:py-6">
+                <div className="mx-3 rounded-xl bg-danger-soft px-3 py-3 text-center">
                   <p className="text-sm text-danger">{error}</p>
                 </div>
               ) : (
@@ -358,9 +353,8 @@ export function HomePage() {
                 />
               )}
             </div>
-          </>
+          </div>
         )}
-      </section>
       </div>
     </AppSplash>
   );

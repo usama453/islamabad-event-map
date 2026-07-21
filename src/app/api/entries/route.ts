@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPendingEntry, fetchPublicEntries } from "@/lib/airtable";
 import { CATEGORIES } from "@/lib/constants";
+import {
+  hashRequestIp,
+  normalizeSubmitterId,
+} from "@/lib/submitterSignals";
 import type { CreateEntryInput, PhotoUpload } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -93,6 +97,7 @@ type ParsedBody = {
   contactPhone?: string;
   eventDate?: string;
   eventEndDate?: string;
+  submitterId?: string;
   photos: PhotoUpload[];
 };
 
@@ -125,6 +130,7 @@ async function parseRequest(request: NextRequest): Promise<ParsedBody> {
       contactPhone: String(form.get("contactPhone") ?? "").trim() || undefined,
       eventDate: String(form.get("eventDate") ?? "") || undefined,
       eventEndDate: String(form.get("eventEndDate") ?? "") || undefined,
+      submitterId: String(form.get("submitterId") ?? "").trim() || undefined,
       photos: photoResult.photos ?? [],
     };
   }
@@ -151,6 +157,9 @@ async function parseRequest(request: NextRequest): Promise<ParsedBody> {
       : undefined,
     eventDate: body.eventDate ? String(body.eventDate) : undefined,
     eventEndDate: body.eventEndDate ? String(body.eventEndDate) : undefined,
+    submitterId: body.submitterId
+      ? String(body.submitterId).trim()
+      : undefined,
     photos: [],
   };
 }
@@ -288,6 +297,8 @@ export async function POST(request: NextRequest) {
       eventDate: type === "event" ? eventDate : undefined,
       eventEndDate:
         type === "event" && eventEndDate ? eventEndDate : undefined,
+      submitterId: normalizeSubmitterId(parsed.submitterId),
+      ipHash: hashRequestIp(request),
     };
 
     const { entry, photoWarning } = await createPendingEntry(input, photos);

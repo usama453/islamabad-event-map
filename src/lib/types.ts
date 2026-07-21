@@ -20,6 +20,10 @@ export interface Entry {
   imageUrls?: string[];
   status: EntryStatus;
   createdTime: string;
+  /** Anonymous browser cookie id — admin only; links submissions from one device */
+  submitterId?: string;
+  /** Daily-rotated IP hash — admin only; weak backup when cookie is cleared */
+  ipHash?: string;
 }
 
 export interface CreateEntryInput {
@@ -35,6 +39,8 @@ export interface CreateEntryInput {
   contactPhone?: string;
   eventDate?: string;
   eventEndDate?: string;
+  submitterId?: string;
+  ipHash?: string;
 }
 
 export interface PhotoUpload {

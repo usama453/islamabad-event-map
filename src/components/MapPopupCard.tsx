@@ -14,6 +14,7 @@ import {
   truncate,
 } from "@/lib/utils";
 import { categoryColor } from "@/components/CategoryIcon";
+import { loadSavedCommentName, saveCommentName } from "@/lib/commentAuthor";
 
 interface MapPopupCardProps {
   entry: Entry;
@@ -69,10 +70,9 @@ export function MapPopupCard({
   browseTotal = 0,
 }: MapPopupCardProps) {
   const [liked, setLiked] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
-  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [slideIndex, setSlideIndex] = useState(0);
   const [reviewText, setReviewText] = useState("");
-  const [authorName, setAuthorName] = useState("");
+  const [authorName, setAuthorName] = useState(() => loadSavedCommentName());
   const [namePromptOpen, setNamePromptOpen] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -81,10 +81,16 @@ export function MapPopupCard({
   const [toast, setToast] = useState<string | null>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   const images = useMemo(() => getEntryImages(entry), [entry]);
   const image = images[0]!;
-  const hasMultiplePhotos = images.length > 1;
+  /** Prefer real uploads for the hero slider; otherwise a single fallback */
+  const slides = useMemo(
+    () => (entry.imageUrls?.length ? entry.imageUrls : [image]),
+    [entry.imageUrls, image]
+  );
+  const isSlider = slides.length > 1;
   const schedule = formatEventSchedule(entry);
   const body = entryBodyText(entry);
   const contactPhone = entryContactPhone(entry);
@@ -94,6 +100,26 @@ export function MapPopupCard({
   const soonLabel = isEvent && !isPending ? happeningSoonLabel(entry) : null;
   const likeBase = useMemo(() => seedCount(entry.id + "♥", 8, 90), [entry.id]);
   const likeCount = likeBase + (liked ? 1 : 0);
+  const hasCoords = entry.lat != null && entry.lng != null;
+  const locationLabel = entry.locationText?.trim() ?? "";
+  const locationIsTbd = locationLabel.toLowerCase().includes("not finalised");
+  const mapsUrl = useMemo(() => {
+    if (hasCoords) {
+      const q = `${entry.lat},${entry.lng}`;
+      const label = encodeURIComponent(entry.title || "Location");
+      if (typeof navigator !== "undefined") {
+        const ua = navigator.userAgent;
+        if (/iPhone|iPad|iPod/i.test(ua)) {
+          return `https://maps.apple.com/?ll=${q}&q=${label}`;
+        }
+      }
+      return `https://www.google.com/maps/search/?api=1&query=${q}`;
+    }
+    if (locationLabel && !locationIsTbd) {
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationLabel)}`;
+    }
+    return null;
+  }, [hasCoords, entry.lat, entry.lng, entry.title, locationLabel, locationIsTbd]);
 
   const visibleComments = commentsExpanded
     ? comments
@@ -102,14 +128,14 @@ export function MapPopupCard({
 
   useEffect(() => {
     setLiked(false);
-    setGalleryOpen(false);
-    setGalleryIndex(0);
+    setSlideIndex(0);
     setReviewText("");
-    setAuthorName("");
+    // authorName is a remembered identity, not per-entry state — leave it be
     setNamePromptOpen(false);
     setComments([]);
     setCommentsExpanded(false);
     setToast(null);
+    sliderRef.current?.scrollTo({ left: 0 });
   }, [entry.id]);
 
   useEffect(() => {
@@ -121,22 +147,7 @@ export function MapPopupCard({
   const canBrowse = browseTotal > 1 && onPrev && onNext;
 
   useEffect(() => {
-    if (!galleryOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setGalleryOpen(false);
-      if (e.key === "ArrowRight" && images.length > 1) {
-        setGalleryIndex((i) => (i + 1) % images.length);
-      }
-      if (e.key === "ArrowLeft" && images.length > 1) {
-        setGalleryIndex((i) => (i - 1 + images.length) % images.length);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [galleryOpen, images.length]);
-
-  useEffect(() => {
-    if (!canBrowse || galleryOpen || namePromptOpen) return;
+    if (!canBrowse || namePromptOpen) return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (
@@ -158,7 +169,22 @@ export function MapPopupCard({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canBrowse, galleryOpen, namePromptOpen, onNext, onPrev]);
+  }, [canBrowse, namePromptOpen, onNext, onPrev]);
+
+  const onSliderScroll = () => {
+    const el = sliderRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const next = Math.round(el.scrollLeft / el.clientWidth);
+    setSlideIndex(Math.max(0, Math.min(next, slides.length - 1)));
+  };
+
+  const goToSlide = (index: number) => {
+    const el = sliderRef.current;
+    if (!el) return;
+    const clamped = Math.max(0, Math.min(index, slides.length - 1));
+    el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
+    setSlideIndex(clamped);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -209,8 +235,23 @@ export function MapPopupCard({
     }
   };
 
+  /** The name dialog doubles as a "change my name" editor (no pending comment) */
+  const confirmName = () => {
+    if (reviewText.trim()) {
+      void postComment();
+      return;
+    }
+    if (authorName.trim()) saveCommentName(authorName.trim());
+    setNamePromptOpen(false);
+  };
+
   const requestPost = () => {
     if (!reviewText.trim() || posting) return;
+    // Already have a saved name from a previous comment — post right away
+    if (authorName.trim()) {
+      void postComment();
+      return;
+    }
     setNamePromptOpen(true);
   };
 
@@ -238,6 +279,9 @@ export function MapPopupCard({
         setComments((prev) => [data.comment as Comment, ...prev]);
         setCommentsExpanded(true);
       }
+      if (authorName.trim()) {
+        saveCommentName(authorName.trim());
+      }
       setReviewText("");
       setNamePromptOpen(false);
       flash(
@@ -257,29 +301,33 @@ export function MapPopupCard({
       className="map-popup-card relative w-full overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="relative h-[140px] w-full bg-line">
-        <button
-          type="button"
-          onClick={() => {
-            setGalleryIndex(0);
-            setGalleryOpen(true);
-          }}
-          aria-label={
-            hasMultiplePhotos
-              ? `View ${images.length} photos`
-              : "View photo"
-          }
-          className="absolute inset-0 z-0 block cursor-pointer [&_img]:pointer-events-none"
+      <div className="relative h-[220px] w-full bg-line sm:h-[240px]">
+        <div
+          ref={sliderRef}
+          onScroll={onSliderScroll}
+          className={`flex h-full w-full ${
+            isSlider
+              ? "snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              : "overflow-hidden"
+          }`}
         >
-          <Image
-            src={image}
-            alt=""
-            fill
-            className="object-cover"
-            sizes="340px"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-        </button>
+          {slides.map((src, i) => (
+            <div
+              key={`${src}-${i}`}
+              className="relative h-full w-full shrink-0 snap-center"
+            >
+              <Image
+                src={src}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="100vw"
+                priority={i === 0}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/28 via-black/[0.04] to-transparent" />
         <button
           type="button"
           onClick={onClose}
@@ -302,15 +350,31 @@ export function MapPopupCard({
               : undefined
           }
         >
-          {isEvent ? "Event" : "Spot"} · {CATEGORY_LABELS[entry.category]}
+          {CATEGORY_LABELS[entry.category]}
         </span>
-        {hasMultiplePhotos && (
-          <span className="pointer-events-none absolute right-2 bottom-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
-            <GalleryIcon />
-            1/{images.length}
-          </span>
+        {isSlider && (
+          <div className="absolute bottom-2.5 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+            {slides.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`Photo ${i + 1}`}
+                aria-current={i === slideIndex}
+                onClick={() => goToSlide(i)}
+                className={`h-1.5 rounded-full transition ${
+                  i === slideIndex
+                    ? "w-4 bg-white"
+                    : "w-1.5 bg-white/45 hover:bg-white/70"
+                }`}
+              />
+            ))}
+          </div>
         )}
-        <div className="pointer-events-none absolute bottom-3 left-3 right-14 z-10">
+        <div
+          className={`pointer-events-none absolute left-3 right-3 z-10 ${
+            isSlider ? "bottom-7" : "bottom-3"
+          }`}
+        >
           <h3 className="text-[17px] font-semibold leading-snug text-white drop-shadow">
             {entry.title}
           </h3>
@@ -376,10 +440,24 @@ export function MapPopupCard({
               {schedule ?? "Date TBA"}
             </p>
           )}
-          {entry.locationText?.trim() &&
-            !entry.locationText.toLowerCase().includes("not finalised") && (
-              <p className="text-ink-muted">{entry.locationText.trim()}</p>
-            )}
+          {(locationLabel && !locationIsTbd) || mapsUrl ? (
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              {locationLabel && !locationIsTbd && (
+                <p className="min-w-0 flex-1 text-ink-muted">{locationLabel}</p>
+              )}
+              {mapsUrl && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-wash px-2.5 py-1 text-[11px] font-semibold text-ink transition hover:bg-surface"
+                >
+                  <MapsPinIcon />
+                  Open in Maps
+                </a>
+              )}
+            </div>
+          ) : null}
           {contactPhone && (
             <a
               href={`tel:${contactPhone.replace(/\s+/g, "")}`}
@@ -469,6 +547,18 @@ export function MapPopupCard({
 
         {/* Instagram-style compose bar */}
         <div className="mt-1 border-t border-line px-3.5 py-2.5">
+          {authorName.trim() && (
+            <div className="mb-1 flex items-center gap-1 text-[11px] text-ink-faint">
+              <span>Commenting as {authorName.trim()}</span>
+              <button
+                type="button"
+                onClick={() => setNamePromptOpen(true)}
+                className="font-medium text-[var(--blue)] hover:underline"
+              >
+                change
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <input
               ref={commentInputRef}
@@ -496,97 +586,6 @@ export function MapPopupCard({
           </div>
         </div>
       </div>
-
-      {galleryOpen && (
-        <div
-          className="fixed inset-0 z-[80] flex flex-col bg-black/92"
-          onClick={(e) => {
-            e.stopPropagation();
-            setGalleryOpen(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Photo gallery"
-        >
-          <div className="flex items-center justify-between px-3 py-3 text-white sm:px-4">
-            <p className="text-sm font-semibold tabular-nums">
-              {galleryIndex + 1} / {images.length}
-            </p>
-            <button
-              type="button"
-              onClick={() => setGalleryOpen(false)}
-              aria-label="Close gallery"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-xl leading-none transition hover:bg-white/25"
-            >
-              ×
-            </button>
-          </div>
-
-          <div
-            className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {hasMultiplePhotos && (
-              <button
-                type="button"
-                aria-label="Previous photo"
-                onClick={() =>
-                  setGalleryIndex(
-                    (i) => (i - 1 + images.length) % images.length
-                  )
-                }
-                className="absolute left-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-xl text-white transition hover:bg-white/25 sm:left-4"
-              >
-                ‹
-              </button>
-            )}
-            <div className="relative h-full max-h-[75dvh] w-full max-w-3xl">
-              <Image
-                src={images[galleryIndex]!}
-                alt=""
-                fill
-                className="object-contain"
-                sizes="100vw"
-                priority
-              />
-            </div>
-            {hasMultiplePhotos && (
-              <button
-                type="button"
-                aria-label="Next photo"
-                onClick={() =>
-                  setGalleryIndex((i) => (i + 1) % images.length)
-                }
-                className="absolute right-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-xl text-white transition hover:bg-white/25 sm:right-4"
-              >
-                ›
-              </button>
-            )}
-          </div>
-
-          {hasMultiplePhotos && (
-            <div
-              className="flex justify-center gap-1.5 px-3 pb-5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {images.map((src, i) => (
-                <button
-                  key={`${src}-${i}`}
-                  type="button"
-                  aria-label={`Photo ${i + 1}`}
-                  aria-current={i === galleryIndex}
-                  onClick={() => setGalleryIndex(i)}
-                  className={`h-1.5 rounded-full transition ${
-                    i === galleryIndex
-                      ? "w-5 bg-white"
-                      : "w-1.5 bg-white/40 hover:bg-white/70"
-                  }`}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {namePromptOpen && (
         <div
@@ -622,7 +621,7 @@ export function MapPopupCard({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  void postComment();
+                  confirmName();
                 }
                 if (e.key === "Escape" && !posting) {
                   setNamePromptOpen(false);
@@ -642,12 +641,14 @@ export function MapPopupCard({
               <button
                 type="button"
                 disabled={posting}
-                onClick={() => {
-                  void postComment();
-                }}
+                onClick={confirmName}
                 className="btn-primary rounded-full border px-4 py-1.5 text-sm font-semibold disabled:opacity-50"
               >
-                {posting ? "Posting…" : "Post comment"}
+                {posting
+                  ? "Posting…"
+                  : reviewText.trim()
+                    ? "Post comment"
+                    : "Save name"}
               </button>
             </div>
           </div>
@@ -657,26 +658,17 @@ export function MapPopupCard({
   );
 }
 
-function GalleryIcon() {
+function MapsPinIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden>
-      <rect
-        x="3"
-        y="5"
-        width="14"
-        height="12"
-        rx="1.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
+    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
       <path
-        d="M7 17v1.5A1.5 1.5 0 0 0 8.5 20H19a2 2 0 0 0 2-2V8.5A1.5 1.5 0 0 0 19.5 7H18"
+        d="M8 1.5a4.2 4.2 0 0 0-4.2 4.2c0 3.15 4.2 8.3 4.2 8.3s4.2-5.15 4.2-8.3A4.2 4.2 0 0 0 8 1.5Z"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
       />
+      <circle cx="8" cy="5.7" r="1.35" fill="currentColor" />
     </svg>
   );
 }

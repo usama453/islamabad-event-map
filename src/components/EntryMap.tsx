@@ -1,17 +1,40 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Map, { Marker, Popup, NavigationControl } from "react-map-gl/mapbox";
+import Map, {
+  Marker,
+  Popup,
+  NavigationControl,
+  AttributionControl,
+} from "react-map-gl/mapbox";
 import type { MapRef } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Entry } from "@/lib/types";
 import {
   CATEGORY_LABELS,
   MAP_PIN_COLORS,
+  MAP_CATEGORY_PIN_COLORS,
   ISLAMABAD_CENTER,
   DEFAULT_ZOOM,
+  MAP_2D_PITCH,
+  MAP_3D_PITCH,
+  MAX_MAP_PITCH,
+  DEFAULT_MAP_BEARING,
+  LAUNCH_CAMERA,
   type Category,
 } from "@/lib/constants";
+import {
+  applyLegacyBasemapOptions,
+  applyStandardBasemapOptions,
+  DEFAULT_BASEMAP_OPTIONS,
+  disableMapTerrain,
+  enableMapTerrain,
+  hideBlockedPlaceLabels,
+  setStandardLightPreset,
+  whenStyleReady,
+  type MapBasemapOptions,
+} from "@/lib/map3d";
+import { animateLaunchCamera, getUserLocation } from "@/lib/mapLaunchCamera";
 import {
   entryOrganizerName,
   formatEventSchedule,
@@ -29,6 +52,11 @@ import { CategoryIcon, categoryColor } from "@/components/CategoryIcon";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
+/** Gentle accelerate-then-decelerate curve for pin-focus camera moves */
+function easeInOutCubic(t: number) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 interface EntryMapProps {
   entries: Entry[];
   selectedId: string | null;
@@ -45,6 +73,8 @@ interface EntryMapProps {
   animatePins?: boolean;
   viewedIds?: Set<string>;
   focusedCategories?: Category[];
+  /** Fires once the launch fly-through settles (or immediately if it won't run) */
+  onLaunchCameraDone?: () => void;
 }
 
 function EventPinIcon({ className }: { className?: string }) {
@@ -144,7 +174,7 @@ function PinTooltip({ entry }: { entry: Entry }) {
               : undefined
           }
         >
-          {isEvent ? "Event" : CATEGORY_LABELS[entry.category]}
+          {CATEGORY_LABELS[entry.category]}
         </span>
         {isEvent && (
           <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
@@ -185,6 +215,72 @@ function PinTooltip({ entry }: { entry: Entry }) {
   );
 }
 
+const TEARDROP_PATH =
+  "M16 0C7.163 0 0 7.163 0 16c0 12 16 24 16 24s16-12 16-24C32 7.163 24.837 0 16 0Z";
+
+/** Inner hole (viewBox units) — evenodd cutout so the map shows through */
+const PIN_HOLE_CX = 16;
+const PIN_HOLE_CY = 14.4;
+const PIN_HOLE_R = 5.5;
+const TEARDROP_WITH_HOLE = `${TEARDROP_PATH} M${PIN_HOLE_CX} ${PIN_HOLE_CY} m -${PIN_HOLE_R},0 a ${PIN_HOLE_R},${PIN_HOLE_R} 0 1,0 ${PIN_HOLE_R * 2},0 a ${PIN_HOLE_R},${PIN_HOLE_R} 0 1,0 -${PIN_HOLE_R * 2},0`;
+
+/** Google-Maps-style teardrop with a punched-out center (not a white fill) */
+function TeardropPin({
+  color,
+  size = 16,
+  soon,
+  viewed,
+  children,
+}: {
+  color: string;
+  size?: number;
+  soon?: boolean;
+  /** Soften the pin when already opened */
+  viewed?: boolean;
+  children?: React.ReactNode;
+}) {
+  const height = Math.round(size * 1.25);
+  const headSize = Math.round(size * 0.36);
+  return (
+    <div className="relative" style={{ width: size, height }}>
+      <svg
+        viewBox="0 0 32 40"
+        className="absolute inset-0 h-full w-full"
+        aria-hidden
+      >
+        <path
+          d={TEARDROP_WITH_HOLE}
+          fill={color}
+          fillRule="evenodd"
+        />
+        {viewed && (
+          <circle
+            cx={PIN_HOLE_CX}
+            cy={PIN_HOLE_CY}
+            r={PIN_HOLE_R + 1.2}
+            fill="none"
+            stroke="#c9cdd3"
+            strokeWidth="2.2"
+          />
+        )}
+      </svg>
+      {(soon || children) && (
+        <span
+          className="absolute left-1/2 top-[36%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+          style={{
+            width: headSize,
+            height: headSize,
+            color: children ? "#ffffff" : color,
+          }}
+        >
+          {soon && <span className="pin-soon-ring" aria-hidden />}
+          {children}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function MapPin({
   entry,
   isSelected,
@@ -193,6 +289,7 @@ function MapPin({
   showTooltip,
   onHoverChange,
   enter,
+  is3D,
 }: {
   entry: Entry;
   isSelected: boolean;
@@ -201,6 +298,7 @@ function MapPin({
   showTooltip: boolean;
   onHoverChange: (hovering: boolean) => void;
   enter?: boolean;
+  is3D?: boolean;
 }) {
   const isEvent = entry.type === "event";
   const isPending = entry.status === "pending";
@@ -208,21 +306,21 @@ function MapPin({
     ? MAP_PIN_COLORS.pending
     : isEvent
       ? MAP_PIN_COLORS.event
-      : categoryColor(entry.category);
+      : MAP_CATEGORY_PIN_COLORS[entry.category];
   const soon = isEvent && !isPending && isEventHappeningSoon(entry);
   const soonLabel = soon ? happeningSoonLabel(entry) : null;
   const showViewed = Boolean(isViewed && !isSelected && !isDimmed);
+  const floatOffset = is3D ? 22 : 0;
 
   return (
     <div
       className={`relative ${enter ? "map-pin-enter" : ""} ${
-        isDimmed && !isSelected
-          ? "opacity-[0.22] saturate-[0.3]"
-          : showViewed
-            ? "opacity-55 saturate-[0.7]"
-            : ""
+        isDimmed && !isSelected ? "opacity-[0.45] saturate-[0.5]" : ""
       }`}
-      style={{ zIndex: isSelected ? 3 : isDimmed ? 1 : 2 }}
+      style={{
+        zIndex: isSelected ? 3 : isDimmed ? 1 : 2,
+        transform: floatOffset ? `translateY(-${floatOffset}px)` : undefined,
+      }}
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
     >
@@ -234,29 +332,241 @@ function MapPin({
       <button
         type="button"
         aria-label={`${isPending ? "Pending " : ""}${
-          isEvent ? "Event" : CATEGORY_LABELS[entry.category]
+          CATEGORY_LABELS[entry.category]
         }: ${entry.title}${soonLabel ? ` — ${soonLabel}` : ""}${
           isPending ? " — awaiting review" : ""
-        }${showViewed ? " — viewed" : ""}`}
-        className={`relative flex h-8 w-8 items-center justify-center rounded-full border-0 text-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-transform dark:shadow-[0_2px_10px_rgba(0,0,0,0.55)] ${
-          isPending ? "pin-pending" : isEvent ? "pin-event" : ""
-        } ${isSelected ? "scale-125" : "hover:scale-110"} ${
-          isPending ? "ring-2 ring-dashed ring-white/80" : ""
         }`}
-        style={isPending || isEvent ? undefined : { backgroundColor: color }}
+        className={`relative block origin-bottom transition-transform ${
+          isSelected ? "scale-125" : "hover:scale-110"
+        } ${isPending ? "opacity-90" : ""}`}
       >
-        {soon && <span className="pin-soon-ring" aria-hidden />}
-        {isEvent ? (
-          <EventPinIcon className="h-3.5 w-3.5" />
-        ) : (
-          <CategoryIcon category={entry.category} className="h-4 w-4" />
-        )}
-        <span
-          className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent"
-          style={{ borderTopColor: color }}
-          aria-hidden
+        <TeardropPin
+          color={color}
+          soon={soon}
+          viewed={showViewed}
         />
       </button>
+      {is3D && (
+        <>
+          <span
+            className="absolute left-1/2 top-full w-px -translate-x-1/2"
+            style={{ height: floatOffset, backgroundColor: color }}
+            aria-hidden
+          />
+          <span
+            className="absolute left-1/2 -translate-x-1/2 rounded-full"
+            style={{
+              top: `calc(100% + ${floatOffset - 1}px)`,
+              width: 3,
+              height: 3,
+              backgroundColor: color,
+            }}
+            aria-hidden
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+const LAYER_TOGGLES: {
+  key: keyof MapBasemapOptions;
+  label: string;
+}[] = [
+  { key: "placeLabels", label: "Place names" },
+  { key: "roadLabels", label: "Road labels" },
+  { key: "poiLabels", label: "POI labels" },
+  { key: "transitLabels", label: "Transit" },
+  { key: "pedestrianRoads", label: "Paths" },
+  { key: "roadsAndTransit", label: "Roads" },
+  { key: "buildings3d", label: "3D buildings" },
+];
+
+/** Single hamburger for 3D / tilt / layers — keeps the map chrome uncluttered */
+function MapToolsMenu({
+  is3D,
+  onToggle3D,
+  pitch,
+  bearing,
+  onPitchChange,
+  onBearingChange,
+  onResetView,
+  basemapOptions,
+  onBasemapChange,
+  onInteract,
+}: {
+  is3D: boolean;
+  onToggle3D: () => void;
+  pitch: number;
+  bearing: number;
+  onPitchChange: (value: number) => void;
+  onBearingChange: (value: number) => void;
+  onResetView: () => void;
+  basemapOptions: MapBasemapOptions;
+  onBasemapChange: (next: MapBasemapOptions) => void;
+  onInteract: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="map-view-controls pointer-events-auto absolute right-2 top-[3.75rem] z-20 sm:right-3">
+      {!open ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onInteract();
+            setOpen(true);
+          }}
+          aria-label="Map options"
+          aria-expanded={false}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink shadow-sm transition hover:bg-wash"
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+            <path
+              d="M2.5 4h11M2.5 8h11M2.5 12h11"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      ) : (
+        <div
+          className="w-[178px] rounded-2xl border border-line bg-surface p-2.5 shadow-md"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onInteract();
+          }}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+              Map
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                onInteract();
+                setOpen(false);
+              }}
+              className="text-ink-muted transition hover:text-ink"
+              aria-label="Close map options"
+              aria-expanded={true}
+            >
+              <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
+                <path
+                  d="M2 2l8 8M10 2l-8 8"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              onInteract();
+              onToggle3D();
+            }}
+            aria-pressed={is3D}
+            className="mb-2 flex w-full items-center justify-between rounded-xl border border-line bg-wash px-2.5 py-2 text-left text-[11px] font-semibold text-ink transition hover:bg-surface"
+          >
+            <span>{is3D ? "3D map" : "2D map"}</span>
+            <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">
+              {is3D ? "3D" : "2D"}
+            </span>
+          </button>
+
+          {is3D && (
+            <div className="mb-2 rounded-xl border border-line bg-wash/60 p-2">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+                  View
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onInteract();
+                    onResetView();
+                  }}
+                  className="text-[10px] font-medium text-ink-muted transition hover:text-ink"
+                  aria-label="Reset tilt and heading"
+                >
+                  Reset
+                </button>
+              </div>
+              <label className="mb-2 block">
+                <div className="mb-0.5 flex items-center justify-between text-[10px] text-ink-muted">
+                  <span>Tilt</span>
+                  <span className="tabular-nums">{pitch}°</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={MAX_MAP_PITCH}
+                  step={1}
+                  value={pitch}
+                  onChange={(e) => onPitchChange(Number(e.target.value))}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
+                  className="map-view-slider w-full"
+                  aria-label="Map tilt"
+                />
+              </label>
+              <label className="block">
+                <div className="mb-0.5 flex items-center justify-between text-[10px] text-ink-muted">
+                  <span>Heading</span>
+                  <span className="tabular-nums">{bearing}°</span>
+                </div>
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  step={1}
+                  value={bearing}
+                  onChange={(e) => onBearingChange(Number(e.target.value))}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
+                  className="map-view-slider w-full"
+                  aria-label="Map heading"
+                />
+              </label>
+            </div>
+          )}
+
+          <div>
+            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+              Layers
+            </span>
+            <div className="flex flex-col gap-1">
+              {LAYER_TOGGLES.map(({ key, label }) => (
+                <label
+                  key={key}
+                  className="flex cursor-pointer items-center justify-between gap-2 text-[11px] text-ink"
+                >
+                  <span className="text-ink-muted">{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={basemapOptions[key]}
+                    onChange={(e) => {
+                      onInteract();
+                      onBasemapChange({
+                        ...basemapOptions,
+                        [key]: e.target.checked,
+                      });
+                    }}
+                    className="h-3.5 w-3.5 accent-[var(--blue)]"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -274,9 +584,12 @@ export function EntryMap({
   animatePins = false,
   viewedIds,
   focusedCategories = [],
+  onLaunchCameraDone,
 }: EntryMapProps) {
   const mapRef = useRef<MapRef>(null);
+  const mapPaneRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
+  const [isMobile, setIsMobile] = useState(false);
   const [popupEntry, setPopupEntry] = useState<Entry | null>(null);
   const [panelPos, setPanelPos] = useState<{
     left: number;
@@ -296,27 +609,317 @@ export function EntryMap({
   const [enteringPinIds, setEnteringPinIds] = useState<Set<string>>(
     () => new Set()
   );
+  // Pins lower on screen sit closer to the camera in a tilted 3D view — this
+  // ranks every pin by projected screen Y so nearer pins draw above farther
+  // ones instead of stacking in arbitrary DOM order.
+  const [pinDepthOrder, setPinDepthOrder] = useState<Map<string, number>>(
+    () => new globalThis.Map()
+  );
   const revealGen = useRef(0);
   const shellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const [is3D, setIs3D] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
+  const [pitch, setPitch] = useState(MAP_3D_PITCH);
+  const [bearing, setBearing] = useState(DEFAULT_MAP_BEARING);
+  const [basemapOptions, setBasemapOptions] = useState<MapBasemapOptions>(
+    DEFAULT_BASEMAP_OPTIONS
+  );
+  const saved3DView = useRef({ pitch: MAP_3D_PITCH, bearing: DEFAULT_MAP_BEARING });
+  const suppressMapClick = useRef(false);
+  const launchCameraPlayed = useRef(false);
+  const launchCameraActive = useRef(
+    typeof window === "undefined"
+      ? false
+      : !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  const launchCameraDoneFired = useRef(false);
+  const fireLaunchCameraDone = useCallback(() => {
+    if (launchCameraDoneFired.current) return;
+    launchCameraDoneFired.current = true;
+    onLaunchCameraDone?.();
+  }, [onLaunchCameraDone]);
+
+  // Ask for the visitor's location as early as possible (mount, not map-load)
+  // so it very likely has already resolved by the time the launch fly-through
+  // starts. The animation itself never waits on this — if it's not ready yet,
+  // we just fall back to the city-center destination instead of delaying.
+  const userLocationResult = useRef<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    getUserLocation(8000).then((loc) => {
+      userLocationResult.current = loc;
+    });
+  }, []);
 
   const mappableEntries = entries.filter(hasCoordinates);
   const mappableIdsKey = mappableEntries.map((e) => e.id).join("|");
   const mappableRef = useRef(mappableEntries);
   mappableRef.current = mappableEntries;
 
-  // Keep Mapbox in sync when the mobile expand/collapse changes the shell size
+  // Keep Mapbox in sync when the map pane size changes (sheet open/close,
+  // expand/collapse, etc). Debounce during motion so the canvas doesn't flash.
   useEffect(() => {
     if (!mapReady) return;
-    const shell = shellRef.current;
+    const pane = mapPaneRef.current ?? shellRef.current;
     const map = mapRef.current?.getMap();
-    if (!shell || !map) return;
+    if (!pane || !map) return;
 
-    const resize = () => map.resize();
-    resize();
+    let settleTimer = 0;
+    const resize = () => {
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => map.resize(), 140);
+    };
+    map.resize();
     const ro = new ResizeObserver(resize);
-    ro.observe(shell);
-    return () => ro.disconnect();
+    ro.observe(pane);
+    return () => {
+      window.clearTimeout(settleTimer);
+      ro.disconnect();
+    };
   }, [mapReady]);
+
+  // Rank pins by projected screen Y so pins nearer the camera (lower on
+  // screen in a tilted view) draw above pins farther away, instead of
+  // stacking in arbitrary DOM order. Recomputed on every camera move —
+  // pan, zoom, rotate, and pitch all fire Mapbox's "move" event.
+  const recomputePinDepthOrder = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const list = mappableRef.current;
+    if (list.length === 0) {
+      setPinDepthOrder((prev) => (prev.size === 0 ? prev : new globalThis.Map()));
+      return;
+    }
+
+    const ranked = list
+      .map((entry) => {
+        const pos = mapPinPosition(entry, list);
+        return { id: entry.id, y: map.project([pos.lng, pos.lat]).y };
+      })
+      .sort((a, b) => a.y - b.y);
+
+    setPinDepthOrder(
+      new globalThis.Map(ranked.map((item, index) => [item.id, index]))
+    );
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapReady) return;
+
+    recomputePinDepthOrder();
+
+    let raf = 0;
+    const schedule = () => {
+      window.cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(recomputePinDepthOrder);
+    };
+    map.on("move", schedule);
+    map.on("resize", schedule);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      map.off("move", schedule);
+      map.off("resize", schedule);
+    };
+  }, [mapReady, mappableIdsKey, recomputePinDepthOrder]);
+
+  // Launch fly-through: Faisal Mosque → visitor's location (or city overview)
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapReady || pinMode) return;
+
+    // No fly-through will ever run for this session (2D mode, reduced motion,
+    // or it already played) — let dependents (e.g. the sidebar reveal) know
+    // right away instead of waiting forever.
+    if (!is3D || launchCameraPlayed.current) {
+      fireLaunchCameraDone();
+      return;
+    }
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    if (reduceMotion) {
+      launchCameraActive.current = false;
+      fireLaunchCameraDone();
+      return;
+    }
+
+    let cancelAnimation: (() => void) | null = null;
+    // Wait until Standard imports finish — mutating/animating too early
+    // leaves the map blank (0 layers, no tiles).
+    const cancelReady = whenStyleReady(map, () => {
+      if (launchCameraPlayed.current) return;
+      launchCameraPlayed.current = true;
+      launchCameraActive.current = true;
+
+      const loc = userLocationResult.current;
+      const end = loc
+        ? { lng: loc.lng, lat: loc.lat, zoom: LAUNCH_CAMERA.end.zoom }
+        : LAUNCH_CAMERA.end;
+
+      cancelAnimation = animateLaunchCamera(
+        map,
+        LAUNCH_CAMERA.start,
+        end,
+        LAUNCH_CAMERA.pitch,
+        LAUNCH_CAMERA.bearing,
+        LAUNCH_CAMERA.durationMs,
+        () => {
+          saved3DView.current = {
+            pitch: LAUNCH_CAMERA.pitch,
+            bearing: LAUNCH_CAMERA.bearing,
+          };
+          setPitch(LAUNCH_CAMERA.pitch);
+          setBearing(LAUNCH_CAMERA.bearing);
+          launchCameraActive.current = false;
+          fireLaunchCameraDone();
+        }
+      );
+    });
+
+    return () => {
+      cancelReady();
+      cancelAnimation?.();
+    };
+  }, [mapReady, is3D, pinMode, fireLaunchCameraDone]);
+
+  // Terrain + pitch when toggling 2D / 3D
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapReady || launchCameraActive.current) return;
+
+    const cancelReady = whenStyleReady(map, () => {
+      if (is3D) {
+        enableMapTerrain(map);
+        const { pitch: p, bearing: b } = saved3DView.current;
+        setPitch(p);
+        setBearing(b);
+        map.easeTo({ pitch: p, bearing: b, duration: 700 });
+      } else {
+        saved3DView.current = {
+          pitch: map.getPitch(),
+          bearing: map.getBearing(),
+        };
+        disableMapTerrain(map);
+        setPitch(MAP_2D_PITCH);
+        map.easeTo({ pitch: MAP_2D_PITCH, duration: 700 });
+      }
+    });
+
+    return cancelReady;
+  }, [is3D, mapReady]);
+
+  // Keep sliders in sync after drag-to-rotate / pitch gestures
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapReady || !is3D) return;
+
+    const sync = () => {
+      const p = Math.round(map.getPitch());
+      const b = Math.round(map.getBearing());
+      setPitch(p);
+      setBearing(b);
+      saved3DView.current = { pitch: p, bearing: b };
+    };
+
+    map.on("moveend", sync);
+    return () => {
+      map.off("moveend", sync);
+    };
+  }, [mapReady, is3D]);
+
+  const blockMapClick = useCallback(() => {
+    suppressMapClick.current = true;
+    window.setTimeout(() => {
+      suppressMapClick.current = false;
+    }, 250);
+  }, []);
+
+  const handlePitchChange = useCallback((value: number) => {
+    blockMapClick();
+    setPitch(value);
+    saved3DView.current.pitch = value;
+    mapRef.current?.easeTo({ pitch: value, duration: 250 });
+  }, [blockMapClick]);
+
+  const handleBearingChange = useCallback((value: number) => {
+    blockMapClick();
+    setBearing(value);
+    saved3DView.current.bearing = value;
+    mapRef.current?.easeTo({ bearing: value, duration: 250 });
+  }, [blockMapClick]);
+
+  const resetMapView = useCallback(() => {
+    const next = { pitch: MAP_3D_PITCH, bearing: DEFAULT_MAP_BEARING };
+    saved3DView.current = next;
+    setPitch(next.pitch);
+    setBearing(next.bearing);
+    mapRef.current?.easeTo({ pitch: next.pitch, bearing: next.bearing, duration: 400 });
+  }, []);
+
+  // Re-apply 3D setup + layer toggles after style changes (theme / 2D↔3D)
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapReady) return;
+
+    const apply = () => {
+      if (is3D) {
+        enableMapTerrain(map);
+        setStandardLightPreset(map, theme);
+        applyStandardBasemapOptions(map, basemapOptions);
+      } else {
+        applyLegacyBasemapOptions(map, basemapOptions);
+      }
+    };
+
+    let cancelNested: (() => void) | null = null;
+    const onStyleLoad = () => {
+      cancelNested?.();
+      cancelNested = whenStyleReady(map, apply);
+    };
+
+    map.on("style.load", onStyleLoad);
+    const cancelReady = whenStyleReady(map, apply);
+    return () => {
+      map.off("style.load", onStyleLoad);
+      cancelReady();
+      cancelNested?.();
+    };
+  }, [mapReady, is3D, theme, basemapOptions]);
+
+  // Hide denylisted place names (e.g. CHOUR HARPAL) when place labels are on
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapReady || !is3D || !basemapOptions.placeLabels) return;
+
+    let scheduled = 0;
+    const apply = () => {
+      window.cancelAnimationFrame(scheduled);
+      scheduled = window.requestAnimationFrame(() => {
+        hideBlockedPlaceLabels(map);
+      });
+    };
+
+    map.on("idle", apply);
+    map.on("moveend", apply);
+    apply();
+    return () => {
+      window.cancelAnimationFrame(scheduled);
+      map.off("idle", apply);
+      map.off("moveend", apply);
+    };
+  }, [mapReady, is3D, basemapOptions.placeLabels]);
 
   // Drop every pin in one-by-one whenever the visible set changes
   // (page load, All / Events / Places, category filters, etc.)
@@ -405,15 +1008,15 @@ export function EntryMap({
       const mobile = window.matchMedia("(max-width: 1023px)").matches;
 
       if (mobile) {
-        // Keep pin in the clear band above the bottom sheet
-        const bottomPad = Math.round(
-          Math.min(Math.max(h * 0.52, 220), h * 0.62)
-        );
+        // Map pane is already squeezed by the sheet — center the pin in it
         mapRef.current?.flyTo({
           center: [entry.lng!, entry.lat!],
           zoom: Math.max(mapRef.current.getZoom() ?? DEFAULT_ZOOM, 13.5),
-          duration: 700,
-          padding: { top: 40, bottom: bottomPad, left: 28, right: 28 },
+          pitch: is3D ? (map?.getPitch() ?? pitch) : MAP_2D_PITCH,
+          bearing: is3D ? (map?.getBearing() ?? bearing) : 0,
+          duration: 900,
+          easing: easeInOutCubic,
+          padding: { top: 56, bottom: 40, left: 28, right: 28 },
           essential: true,
         });
         return;
@@ -424,12 +1027,15 @@ export function EntryMap({
       mapRef.current?.flyTo({
         center: [entry.lng!, entry.lat!],
         zoom: Math.max(mapRef.current.getZoom() ?? DEFAULT_ZOOM, 13.5),
-        duration: 700,
+        pitch: is3D ? (map?.getPitch() ?? pitch) : MAP_2D_PITCH,
+        bearing: is3D ? (map?.getBearing() ?? bearing) : 0,
+        duration: 1300,
+        easing: easeInOutCubic,
         padding: { top: 56, bottom: 56, left: 48, right: rightPad },
         essential: true,
       });
     },
-    [pinMode]
+    [pinMode, is3D, pitch, bearing]
   );
 
   const updatePanelPos = useCallback(() => {
@@ -447,21 +1053,8 @@ export function EntryMap({
     const mobile = window.matchMedia("(max-width: 1023px)").matches;
 
     if (mobile) {
-      // Bottom-centered sheet with a hard height cap (dvh/% fail when parent height is auto)
-      const width = Math.min(340, shellW - 24);
-      const left = Math.round((shellW - width) / 2);
-      const maxHeight = Math.min(360, Math.round(shellH * 0.42));
-      const bottom = 88; // clear of browse arrows
-      const next = { left, bottom, width, maxHeight };
-      setPanelPos((prev) =>
-        prev &&
-        prev.left === next.left &&
-        prev.bottom === next.bottom &&
-        prev.width === next.width &&
-        prev.maxHeight === next.maxHeight
-          ? prev
-          : next
-      );
+      // Mobile uses a layout sheet (not absolute coords)
+      setPanelPos(null);
       return;
     }
 
@@ -507,6 +1100,10 @@ export function EntryMap({
       setPanelPos(null);
       return;
     }
+    if (isMobile) {
+      setPanelPos(null);
+      return;
+    }
     updatePanelPos();
     const raf = window.requestAnimationFrame(() => updatePanelPos());
     const map = mapRef.current?.getMap();
@@ -522,7 +1119,36 @@ export function EntryMap({
       map.off("zoom", updatePanelPos);
       map.off("resize", updatePanelPos);
     };
-  }, [popupEntry, mapReady, pinMode, updatePanelPos]);
+  }, [popupEntry, mapReady, pinMode, isMobile, updatePanelPos]);
+
+  // After the mobile sheet mounts, resize the map into the remaining pane
+  // and keep the selected pin centered in that upper area.
+  useEffect(() => {
+    if (!isMobile || !popupEntry || pinMode || !mapReady) return;
+    if (!hasCoordinates(popupEntry)) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      map.resize();
+      map.easeTo({
+        center: [popupEntry.lng!, popupEntry.lat!],
+        zoom: Math.max(map.getZoom(), 13.5),
+        padding: { top: 56, bottom: 40, left: 28, right: 28 },
+        duration: 420,
+        essential: true,
+      });
+    };
+    const raf = window.requestAnimationFrame(() => {
+      window.setTimeout(run, 40);
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+    };
+  }, [isMobile, popupEntry?.id, pinMode, mapReady]);
 
   useEffect(() => {
     if (flyToEntry && hasCoordinates(flyToEntry) && !pinMode) {
@@ -537,10 +1163,12 @@ export function EntryMap({
       mapRef.current?.flyTo({
         center: [draftPin.lng, draftPin.lat],
         zoom: Math.max(mapRef.current.getZoom(), 13),
+        pitch: is3D ? pitch : MAP_2D_PITCH,
+        bearing: is3D ? bearing : 0,
         duration: 500,
       });
     }
-  }, [draftPin, pinMode]);
+  }, [draftPin, pinMode, is3D, pitch, bearing]);
 
   const handleMarkerClick = useCallback(
     (entry: Entry) => {
@@ -603,254 +1231,254 @@ export function EntryMap({
     );
   }
 
+  const showMobileSheet = isMobile && !pinMode && Boolean(popupEntry);
+  const showDesktopPanel =
+    !isMobile && !pinMode && Boolean(popupEntry) && Boolean(panelPos);
+
   return (
-    <div ref={shellRef} className="relative h-full w-full">
-      <Map
-        ref={mapRef}
-        mapboxAccessToken={MAPBOX_TOKEN}
-        initialViewState={{
-          latitude: ISLAMABAD_CENTER.lat,
-          longitude: ISLAMABAD_CENTER.lng,
-          zoom: DEFAULT_ZOOM,
-        }}
-        style={{ width: "100%", height: "100%" }}
-        mapStyle={
-          theme === "dark"
-            ? "mapbox://styles/mapbox/dark-v11"
-            : "mapbox://styles/mapbox/streets-v12"
-        }
-        cursor={pinMode ? "crosshair" : undefined}
-        onLoad={() => setMapReady(true)}
-        onClick={(e) => {
-          if (pinMode && onDraftPinChange) {
-            onDraftPinChange(e.lngLat.lat, e.lngLat.lng);
-            return;
+    <div ref={shellRef} className="relative z-0 flex h-full w-full flex-col">
+      <div ref={mapPaneRef} className="relative min-h-0 flex-1">
+        <Map
+          ref={mapRef}
+          mapboxAccessToken={MAPBOX_TOKEN}
+          initialViewState={{
+            latitude: is3D ? LAUNCH_CAMERA.start.lat : ISLAMABAD_CENTER.lat,
+            longitude: is3D ? LAUNCH_CAMERA.start.lng : ISLAMABAD_CENTER.lng,
+            zoom: is3D ? LAUNCH_CAMERA.start.zoom : DEFAULT_ZOOM,
+            pitch: is3D ? LAUNCH_CAMERA.pitch : MAP_2D_PITCH,
+            bearing: is3D ? LAUNCH_CAMERA.bearing : 0,
+          }}
+          style={{ width: "100%", height: "100%", zIndex: 0 }}
+          attributionControl={false}
+          logoPosition="bottom-right"
+          mapStyle={
+            is3D
+              ? "mapbox://styles/mapbox/standard"
+              : theme === "dark"
+                ? "mapbox://styles/mapbox/dark-v11"
+                : "mapbox://styles/mapbox/streets-v12"
           }
-          // Ignore clicks on UI controls / markers (markers stopPropagation)
-          const target = e.originalEvent.target as HTMLElement | null;
-          if (
-            target?.closest?.(
-              ".mapboxgl-ctrl, .mapboxgl-popup, button, a"
-            )
-          ) {
-            return;
-          }
-          setPopupEntry(null);
-          setHoveredId(null);
-          onSelect(null);
-          if (onSuggestAt) {
-            setSuggestPrompt({
-              lat: e.lngLat.lat,
-              lng: e.lngLat.lng,
-            });
-          }
-        }}
-      >
-        <NavigationControl position="top-right" showCompass={false} />
+          dragRotate={is3D}
+          touchPitch={is3D}
+          maxPitch={MAX_MAP_PITCH}
+          cursor={pinMode ? "crosshair" : undefined}
+          onLoad={() => {
+            // Don't mutate Standard style here — imports may still be loading.
+            // Terrain / layer config run in the style-ready effect.
+            setMapReady(true);
+          }}
+          onClick={(e) => {
+            if (pinMode && onDraftPinChange) {
+              onDraftPinChange(e.lngLat.lat, e.lngLat.lng);
+              return;
+            }
+            if (suppressMapClick.current || launchCameraActive.current) return;
+            // Ignore clicks on UI controls / markers (markers stopPropagation)
+            const target = e.originalEvent.target as HTMLElement | null;
+            if (
+              target?.closest?.(
+                ".mapboxgl-ctrl, .mapboxgl-popup, .map-view-controls, .map-3d-toggle, button, a, input, label"
+              )
+            ) {
+              return;
+            }
+            setPopupEntry(null);
+            setHoveredId(null);
+            onSelect(null);
+            if (onSuggestAt) {
+              setSuggestPrompt({
+                lat: e.lngLat.lat,
+                lng: e.lngLat.lng,
+              });
+            }
+          }}
+        >
+          <NavigationControl position="top-right" showCompass={is3D} />
+          <AttributionControl compact position="bottom-right" />
 
-        {mappableEntries
-          .slice(0, pinMode ? mappableEntries.length : visiblePinCount)
-          .map((entry) => {
-          const isSelected = !pinMode && selectedId === entry.id;
-          const showTooltip =
-            !pinMode &&
-            hoveredId === entry.id &&
-            popupEntry?.id !== entry.id;
-          const position = mapPinPosition(entry, mappableEntries);
-          const enter = !pinMode && enteringPinIds.has(entry.id);
+          {mappableEntries
+            .slice(0, pinMode ? mappableEntries.length : visiblePinCount)
+            .map((entry) => {
+            const isSelected = !pinMode && selectedId === entry.id;
+            const showTooltip =
+              !pinMode &&
+              hoveredId === entry.id &&
+              popupEntry?.id !== entry.id;
+            const position = mapPinPosition(entry, mappableEntries);
+            const enter = !pinMode && enteringPinIds.has(entry.id);
+            const depthRank = pinDepthOrder.get(entry.id) ?? 0;
 
-          return (
-            <Marker
-              key={entry.id}
-              latitude={position.lat}
-              longitude={position.lng}
-              anchor="bottom"
-              style={{
-                zIndex:
-                  showTooltip || isSelected || enter
-                    ? 30
-                    : entry.type === "event"
-                      ? 10
-                      : 5,
-                opacity: pinMode ? 0.22 : 1,
-                // Explicitly clear filter — `undefined` can leave Mapbox markers dulled
-                filter: pinMode
-                  ? "grayscale(0.85) saturate(0.2)"
-                  : "none",
-                pointerEvents: pinMode ? "none" : "auto",
-              }}
-              onClick={(e) => {
-                e.originalEvent.stopPropagation();
-                handleMarkerClick(entry);
-              }}
-            >
-              <div
-                className={pinMode ? "pin-dulled" : undefined}
-                style={
-                  pinMode
-                    ? undefined
-                    : { opacity: 1, filter: "none" }
-                }
+            return (
+              <Marker
+                key={entry.id}
+                latitude={position.lat}
+                longitude={position.lng}
+                anchor="bottom"
+                style={{
+                  // Nearer-to-camera pins (ranked by recomputePinDepthOrder)
+                  // draw above farther ones; selected/hovered/entering pins
+                  // always win regardless of depth.
+                  zIndex:
+                    showTooltip || isSelected || enter
+                      ? 20 + depthRank
+                      : 1 + depthRank,
+                  opacity: pinMode ? 0.22 : 1,
+                  // Explicitly clear filter — `undefined` can leave Mapbox markers dulled
+                  filter: pinMode
+                    ? "grayscale(0.85) saturate(0.2)"
+                    : "none",
+                  pointerEvents: pinMode ? "none" : "auto",
+                }}
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  handleMarkerClick(entry);
+                }}
               >
-                <MapPin
-                  entry={entry}
-                  isSelected={isSelected}
-                  isViewed={viewedIds?.has(entry.id)}
-                  isDimmed={
-                    focusedCategories.length > 0 &&
-                    !focusedCategories.includes(entry.category)
+                <div
+                  className={pinMode ? "pin-dulled" : undefined}
+                  style={
+                    pinMode
+                      ? undefined
+                      : { opacity: 1, filter: "none" }
                   }
-                  showTooltip={showTooltip}
-                  enter={enter}
-                  onHoverChange={(hovering) =>
-                    setHoveredId(hovering ? entry.id : null)
-                  }
-                />
-              </div>
-            </Marker>
-          );
-        })}
+                >
+                  <MapPin
+                    entry={entry}
+                    isSelected={isSelected}
+                    isViewed={viewedIds?.has(entry.id)}
+                    isDimmed={
+                      focusedCategories.length > 0 &&
+                      !focusedCategories.includes(entry.category)
+                    }
+                    showTooltip={showTooltip}
+                    enter={enter}
+                    is3D={is3D && !pinMode}
+                    onHoverChange={(hovering) =>
+                      setHoveredId(hovering ? entry.id : null)
+                    }
+                  />
+                </div>
+              </Marker>
+            );
+          })}
 
-        {pinMode && draftPin && (
-          <Marker
-            latitude={draftPin.lat}
-            longitude={draftPin.lng}
-            anchor="bottom"
-            style={{ zIndex: 40 }}
-          >
-            <div className="relative flex flex-col items-center">
-              <span className="mb-1 rounded-full bg-[var(--blue)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
-                Your pin
-              </span>
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--blue)] text-white shadow-[0_2px_10px_rgba(0,81,255,0.45)] ring-2 ring-white">
-                <PlacePinIcon className="h-4 w-4" />
-              </span>
-              <span
-                className="h-0 w-0 border-x-[6px] border-t-[7px] border-x-transparent"
-                style={{ borderTopColor: MAP_PIN_COLORS.place }}
-                aria-hidden
-              />
-            </div>
-          </Marker>
-        )}
-
-        {!pinMode && suggestPrompt && onSuggestAt && (
-          <>
+          {pinMode && draftPin && (
             <Marker
-              latitude={suggestPrompt.lat}
-              longitude={suggestPrompt.lng}
+              latitude={draftPin.lat}
+              longitude={draftPin.lng}
               anchor="bottom"
-              style={{ zIndex: 35 }}
+              style={{ zIndex: 30 }}
             >
               <div className="relative flex flex-col items-center">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--blue)] text-white shadow-[0_2px_10px_rgba(0,81,255,0.4)] ring-2 ring-white">
-                  <PlacePinIcon className="h-3.5 w-3.5" />
+                <span className="mb-1 rounded-full bg-[var(--blue)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                  Your pin
                 </span>
-                <span
-                  className="h-0 w-0 border-x-[5px] border-t-[6px] border-x-transparent"
-                  style={{ borderTopColor: MAP_PIN_COLORS.place }}
-                  aria-hidden
-                />
+                <TeardropPin color={MAP_PIN_COLORS.place}>
+                  <PlacePinIcon className="h-3.5 w-3.5" />
+                </TeardropPin>
               </div>
             </Marker>
-            <Popup
-              latitude={suggestPrompt.lat}
-              longitude={suggestPrompt.lng}
-              anchor="bottom"
-              onClose={dismissSuggestPrompt}
-              closeOnClick={false}
-              closeButton={false}
-              maxWidth="280px"
-              offset={36}
-              className="entry-map-popup"
-            >
-              <div
-                className="w-[240px] rounded-xl border border-line bg-surface p-3 shadow-lg"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p className="text-sm font-semibold leading-snug text-ink">
-                  Would you like to add a spot or create an event here?
-                </p>
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={confirmSuggestPrompt}
-                    className="btn-primary flex-1 rounded-full border px-3 py-2 text-xs font-semibold"
-                  >
-                    Yes, create
-                  </button>
-                  <button
-                    type="button"
-                    onClick={dismissSuggestPrompt}
-                    className="rounded-full border border-line-strong bg-surface px-3 py-2 text-xs font-semibold text-ink transition hover:bg-wash"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </Popup>
-          </>
-        )}
-      </Map>
+          )}
 
-      {/* Detail card anchored next to the selected pin (screen-space) */}
-      {!pinMode && popupEntry && panelPos && (
-        <>
-          {mappableEntries.length > 1 && (
+          {!pinMode && suggestPrompt && onSuggestAt && (
             <>
-              {/* Mobile: bottom-center pair */}
-              <div className="pointer-events-auto absolute bottom-3 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 lg:hidden">
-                <button
-                  type="button"
-                  onClick={() => browseTo(-1)}
-                  aria-label="Previous spot"
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  onClick={() => browseTo(1)}
-                  aria-label="Next spot"
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash"
-                >
-                  ›
-                </button>
-              </div>
-              {/* Desktop: left / right edges */}
-              <button
-                type="button"
-                onClick={() => browseTo(-1)}
-                aria-label="Previous spot"
-                className="pointer-events-auto absolute left-3 top-1/2 z-50 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash lg:flex"
+              <Marker
+                latitude={suggestPrompt.lat}
+                longitude={suggestPrompt.lng}
+                anchor="bottom"
+                style={{ zIndex: 25 }}
               >
-                ‹
-              </button>
-              <button
-                type="button"
-                onClick={() => browseTo(1)}
-                aria-label="Next spot"
-                className="pointer-events-auto absolute right-3 top-1/2 z-50 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash lg:flex"
+                <div className="relative flex flex-col items-center">
+                  <TeardropPin color={MAP_PIN_COLORS.place} size={20}>
+                    <PlacePinIcon className="h-2.5 w-2.5" />
+                  </TeardropPin>
+                </div>
+              </Marker>
+              <Popup
+                latitude={suggestPrompt.lat}
+                longitude={suggestPrompt.lng}
+                anchor="bottom"
+                onClose={dismissSuggestPrompt}
+                closeOnClick={false}
+                closeButton={false}
+                maxWidth="280px"
+                offset={36}
+                className="entry-map-popup"
               >
-                ›
-              </button>
+                <div
+                  className="w-[240px] rounded-xl border border-line bg-surface p-3 shadow-lg"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-sm font-semibold leading-snug text-ink">
+                    Would you like to add a spot here?
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={confirmSuggestPrompt}
+                      className="btn-primary flex-1 rounded-full border px-3 py-2 text-xs font-semibold"
+                    >
+                      Yes, create
+                    </button>
+                    <button
+                      type="button"
+                      onClick={dismissSuggestPrompt}
+                      className="rounded-full border border-line-strong bg-surface px-3 py-2 text-xs font-semibold text-ink transition hover:bg-wash"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </Popup>
             </>
           )}
+        </Map>
+
+        {!pinMode && (
+          <MapToolsMenu
+            is3D={is3D}
+            onToggle3D={() => setIs3D((v) => !v)}
+            pitch={pitch}
+            bearing={bearing}
+            onPitchChange={handlePitchChange}
+            onBearingChange={handleBearingChange}
+            onResetView={resetMapView}
+            basemapOptions={basemapOptions}
+            onBasemapChange={setBasemapOptions}
+            onInteract={blockMapClick}
+          />
+        )}
+
+        {!pinMode && popupEntry && mappableEntries.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => browseTo(-1)}
+              aria-label="Previous spot"
+              className="pointer-events-auto absolute left-3 top-1/2 z-[60] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => browseTo(1)}
+              aria-label="Next spot"
+              className="pointer-events-auto absolute right-3 top-1/2 z-[60] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-2xl leading-none text-ink shadow-md transition hover:bg-wash"
+            >
+              ›
+            </button>
+          </>
+        )}
+
+        {/* Desktop: floating card beside the pin */}
+        {showDesktopPanel && panelPos && popupEntry && (
           <div
-            className="pointer-events-none absolute z-40"
-            style={
-              panelPos.bottom != null
-                ? {
-                    left: panelPos.left,
-                    bottom: panelPos.bottom,
-                    width: panelPos.width,
-                  }
-                : {
-                    left: panelPos.left,
-                    top: panelPos.top,
-                    width: panelPos.width,
-                  }
-            }
+            className="pointer-events-none absolute z-[55]"
+            style={{
+              left: panelPos.left,
+              top: panelPos.top,
+              width: panelPos.width,
+            }}
           >
             <div
               ref={panelRef}
@@ -871,38 +1499,63 @@ export function EntryMap({
               />
             </div>
           </div>
-        </>
-      )}
+        )}
 
-      {!pinMode && (
-        <ViewerTicker className="absolute left-2 top-[4.5rem] z-20 sm:left-3 lg:top-3" />
-      )}
+        {!pinMode && (
+          <ViewerTicker className="absolute left-2 top-[3.75rem] z-20 sm:left-3" />
+        )}
 
-      {pinMode && (
-        <div className="absolute left-1/2 top-[4.25rem] z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--orange)_45%,white)] bg-[var(--orange)] pl-4 pr-1.5 py-1.5 text-sm font-semibold text-white shadow-md sm:top-3">
-          <span className="pointer-events-none whitespace-nowrap">
-            Click the map to drop your pin
-            {draftPin && (
-              <span className="ml-2 font-medium text-white/85">
-                · {draftPin.lat.toFixed(4)}, {draftPin.lng.toFixed(4)}
-              </span>
+        {pinMode && (
+          <div className="absolute left-1/2 top-[6.75rem] z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--orange)_45%,white)] bg-[var(--orange)] pl-4 pr-1.5 py-1.5 text-sm font-semibold text-white shadow-md sm:top-[3.75rem]">
+            <span className="pointer-events-none whitespace-nowrap">
+              Click the map to drop your pin
+              {draftPin && (
+                <span className="ml-2 font-medium text-white/85">
+                  · {draftPin.lat.toFixed(4)}, {draftPin.lng.toFixed(4)}
+                </span>
+              )}
+            </span>
+            {onCancelPinMode && (
+              <button
+                type="button"
+                onClick={onCancelPinMode}
+                aria-label="Cancel pin placement"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-base leading-none text-white transition hover:bg-white/30"
+              >
+                ×
+              </button>
             )}
-          </span>
-          {onCancelPinMode && (
-            <button
-              type="button"
-              onClick={onCancelPinMode}
-              aria-label="Cancel pin placement"
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-base leading-none text-white transition hover:bg-white/30"
-            >
-              ×
-            </button>
-          )}
+          </div>
+        )}
+
+        {!pinMode && <FloatingSprites />}
+        {!pinMode && <KohCompanion className="hidden sm:flex" />}
+      </div>
+
+      {/* Mobile: full-width sheet that squeezes the map upward */}
+      {showMobileSheet && popupEntry && (
+        <div
+          ref={panelRef}
+          className="map-mobile-sheet pointer-events-auto relative z-40 w-full shrink-0 overflow-y-auto overflow-x-hidden hide-scrollbar border-t border-line bg-surface"
+          style={{
+            maxHeight: "min(55dvh, 520px)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MapPopupCard
+            entry={popupEntry}
+            onClose={() => {
+              setPopupEntry(null);
+              onSelect(null);
+            }}
+            onPrev={() => browseTo(-1)}
+            onNext={() => browseTo(1)}
+            browseIndex={browseIndex >= 0 ? browseIndex : undefined}
+            browseTotal={mappableEntries.length}
+          />
         </div>
       )}
-
-      {!pinMode && <FloatingSprites />}
-      {!pinMode && <KohCompanion className="hidden sm:flex" />}
     </div>
   );
 }

@@ -235,7 +235,7 @@ const KOH_TIPS_LIGHT = [
   "Not lost. Just exploring.",
   "F-6 or F-7? Wrong question. Both.",
   "Got a secret café? Drop a pin.",
-  "Events don’t find themselves.",
+  "Good spots don’t find themselves.",
   "Margalla’s that way. Always.",
   "One more pin. For science.",
 ];

@@ -90,20 +90,18 @@ export function WelcomeModal({ open, onClose, onAddSpot }: WelcomeModalProps) {
                 Islamabad Explore
               </p>
               <p className="mt-2 font-pixel text-[9px] uppercase tracking-wider text-[#c8b48a]">
-                A community map of events &amp; spots
+                A community map of spots
               </p>
             </div>
           </div>
 
           <div className="koh-about-copy mt-4 space-y-3 font-pixel text-[9px] uppercase leading-[1.9] tracking-wide text-[#f0e6c8] sm:text-[10px]">
             <p>
-              Browse the map for what&apos;s on in Islamabad — gigs, markets,
-              cafés, trails, hangouts. Tap a pin to open the details.
+              Browse the map for cafés, trails, hangouts, and hidden gems in
+              Islamabad. Tap a pin to open the details.
             </p>
             <p>
-              <span className="text-[#ff9a4a]">Orange</span> pins = events.{" "}
-              <span className="text-[#6aa8ff]">Blue</span> pins = spots. Amber =
-              waiting for a human to verify.
+              Colored pins = categories. Amber = waiting for a human to verify.
             </p>
             <p>
               Know something good? Add it. New pins stay pending until verified,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Entry } from "@/lib/types";
 import type { Category, ViewFilter } from "@/lib/constants";
 import { EntryCard } from "./EntryCard";
@@ -22,46 +22,11 @@ interface EntryListProps {
   onAdd?: () => void;
 }
 
-function emptyCopy(viewFilter: ViewFilter): { title: string; body: string } {
-  if (viewFilter === "event") {
-    return {
-      title: "No events yet",
-      body: "Nothing scheduled in this view — switch to Spots, or add an event so others can find it.",
-    };
-  }
+function emptyCopy(_viewFilter: ViewFilter): { title: string; body: string } {
   return {
     title: "No spots yet",
-    body: "No places match these filters — switch to Events, or add a café, trail, or hangout you know.",
+    body: "No places match these filters — try another category, or add a café, trail, or hangout you know.",
   };
-}
-
-function ListFooter({
-  viewFilter,
-  onAdd,
-}: {
-  viewFilter: ViewFilter;
-  onAdd?: () => void;
-}) {
-  if (!onAdd) return null;
-
-  const isEvent = viewFilter === "event";
-
-  return (
-    <div className="mt-6 border-t border-line px-2 pb-6 pt-6 text-center sm:mt-8 sm:px-3 sm:pb-8 sm:pt-8">
-      <p className="mx-auto max-w-[260px] text-sm leading-relaxed text-ink-muted sm:max-w-[280px] sm:text-[15px]">
-        {isEvent
-          ? "Know something happening in Islamabad? Share it with us."
-          : "Do you know a good spot?"}
-      </p>
-      <button
-        type="button"
-        onClick={onAdd}
-        className="mt-3 text-sm font-semibold text-ink underline decoration-ink/25 underline-offset-4 transition hover:decoration-ink sm:mt-3.5"
-      >
-        Add on map
-      </button>
-    </div>
-  );
 }
 
 export function EntryList({
@@ -76,14 +41,23 @@ export function EntryList({
   onAdd,
 }: EntryListProps) {
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  /** pending → hidden until splash; animating → stack-in; done → normal */
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [stackPhase, setStackPhase] = useState<"pending" | "animating" | "done">(
     "pending"
   );
 
-  // Play stack-in once after splash, when listings are ready
+  const activeEntries = useMemo(
+    () => entries.filter((e) => e.status !== "pending"),
+    [entries]
+  );
+
   useEffect(() => {
-    if (!animateIn || loading || entries.length === 0 || stackPhase !== "pending")
+    if (
+      !animateIn ||
+      loading ||
+      activeEntries.length === 0 ||
+      stackPhase !== "pending"
+    )
       return;
 
     const reduceMotion = window.matchMedia(
@@ -95,51 +69,71 @@ export function EntryList({
     }
 
     setStackPhase("animating");
-    const n = Math.min(entries.length, STACK_MAX_STAGGER + 1);
+    const n = Math.min(activeEntries.length, STACK_MAX_STAGGER + 1);
     const doneMs = 120 + n * 70 + 500;
     const t = window.setTimeout(() => setStackPhase("done"), doneMs);
     return () => window.clearTimeout(t);
-  }, [animateIn, loading, entries.length, stackPhase]);
+  }, [animateIn, loading, activeEntries.length, stackPhase]);
 
   useEffect(() => {
     if (!selectedId) return;
     const el = cardRefs.current[selectedId];
-    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    el?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
   }, [selectedId]);
 
   if (loading) {
-    return <QuietLoader label="Loading listings…" />;
+    return (
+      <div className="px-3 py-4">
+        <QuietLoader label="Loading listings…" />
+      </div>
+    );
   }
 
   if (entries.length === 0) {
     const empty = emptyCopy(viewFilter);
     return (
-      <div>
-        <div className="flex flex-col items-center py-8 text-center sm:py-16">
-          <KohMascot size={48} mood="look" interactive />
-          <p className="mt-2 text-base font-semibold text-ink sm:mt-3 sm:text-lg">
-            {empty.title}
-          </p>
-          <p className="mt-1 max-w-[280px] text-xs leading-relaxed text-ink-muted sm:text-sm">
-            {empty.body}
-          </p>
+      <div className="flex items-center gap-3 px-3 py-2">
+        <KohMascot size={36} mood="look" interactive />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink">{empty.title}</p>
+          <p className="text-[11px] leading-snug text-ink-muted">{empty.body}</p>
         </div>
-        <ListFooter viewFilter={viewFilter} onAdd={onAdd} />
+        {onAdd && (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="ml-auto shrink-0 rounded-full border border-line bg-surface px-3 py-1.5 text-[11px] font-semibold text-ink shadow-sm"
+          >
+            Add
+          </button>
+        )}
       </div>
     );
   }
 
+  const railEntries = activeEntries;
+
   return (
-    <div>
-      <div className="flex flex-col gap-0.5 sm:gap-1">
-        {entries.map((entry, index) => {
+    <div className="flex flex-col gap-1.5">
+      <div
+        ref={scrollerRef}
+        className="hide-scrollbar flex items-end gap-2 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {railEntries.map((entry, index) => {
           const stagger = Math.min(index, STACK_MAX_STAGGER);
           return (
             <div
               key={entry.id}
-              className={
-                stackPhase === "animating" ? "list-stack-item" : undefined
-              }
+              ref={(node) => {
+                cardRefs.current[entry.id] = node;
+              }}
+              className={`w-[100px] shrink-0 sm:w-[112px] ${
+                stackPhase === "animating" ? "list-stack-item" : ""
+              }`}
               style={
                 stackPhase === "animating"
                   ? ({ "--stack-i": stagger } as CSSProperties)
@@ -148,27 +142,34 @@ export function EntryList({
                     : undefined
               }
             >
-              <div
-                ref={(node) => {
-                  cardRefs.current[entry.id] = node;
-                }}
-              >
-                <EntryCard
-                  entry={entry}
-                  isSelected={selectedId === entry.id}
-                  isViewed={viewedIds?.has(entry.id)}
-                  isDimmed={
-                    focusedCategories.length > 0 &&
-                    !focusedCategories.includes(entry.category)
-                  }
-                  onClick={() => onSelect(entry)}
-                />
-              </div>
+              <EntryCard
+                entry={entry}
+                variant="rail"
+                isSelected={selectedId === entry.id}
+                isViewed={viewedIds?.has(entry.id)}
+                isDimmed={
+                  focusedCategories.length > 0 &&
+                  !focusedCategories.includes(entry.category)
+                }
+                onClick={() => onSelect(entry)}
+              />
             </div>
           );
         })}
+
+        {onAdd && (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="flex w-[84px] shrink-0 flex-col items-center justify-center gap-0.5 self-stretch rounded-xl border border-dashed border-line-strong bg-surface/90 px-1.5 py-2 text-center shadow-sm backdrop-blur-sm transition hover:bg-wash sm:w-[96px]"
+          >
+            <span className="text-base leading-none text-ink-muted">+</span>
+            <span className="text-[10px] font-semibold leading-tight text-ink">
+              Add spot
+            </span>
+          </button>
+        )}
       </div>
-      <ListFooter viewFilter={viewFilter} onAdd={onAdd} />
     </div>
   );
 }

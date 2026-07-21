@@ -30,54 +30,57 @@ function MapLogo({ className = "" }: { className?: string }) {
   );
 }
 
-function listingCountLabel(count: number, viewFilter: ViewFilter): string {
-  if (viewFilter === "event") {
-    return `${count} event${count !== 1 ? "s" : ""}`;
-  }
+function listingCountLabel(count: number, _viewFilter: ViewFilter): string {
   return `${count} spot${count !== 1 ? "s" : ""}`;
 }
 
 interface HeaderProps {
-  /** Compact brand bar for the left sidebar */
+  /** Compact brand bar for the top of the app shell */
   variant?: "bar" | "sidebar";
   listingCount?: number;
   viewFilter?: ViewFilter;
+  /** When false, only the brand link is shown (for centered map chrome) */
+  showThemeToggle?: boolean;
 }
 
 export function Header({
   variant = "bar",
   listingCount,
   viewFilter = "place",
+  showThemeToggle = true,
 }: HeaderProps) {
   if (variant === "sidebar") {
     return (
-      <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface px-2.5 py-1.5 sm:px-4 sm:py-3">
-        <div className="flex items-center justify-between gap-2">
+      <header className="shrink-0 bg-transparent px-2.5 py-1.5">
+        <div
+          className={`flex items-center gap-1.5 ${
+            showThemeToggle ? "justify-between" : "justify-center"
+          }`}
+        >
           <Link
             href="/"
-            className="flex min-w-0 items-center gap-2 sm:gap-2.5"
+            className="flex min-w-0 items-center gap-1.5"
             aria-label="Islamabad Explore home"
           >
-            <MapLogo className="h-7 w-7 shrink-0 sm:h-9 sm:w-9" />
+            <MapLogo className="h-5 w-5 shrink-0 sm:h-6 sm:w-6" />
             <span className="min-w-0 leading-tight">
-              <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                <span className="text-[13px] font-semibold tracking-tight text-ink sm:text-base">
+              <span className="flex flex-wrap items-baseline justify-center gap-x-1 gap-y-0">
+                <span className="text-[11px] font-semibold tracking-tight text-ink sm:text-xs">
                   Islamabad Explore
                 </span>
                 {listingCount != null && (
-                  <span className="text-[11px] font-medium tabular-nums text-ink-muted sm:text-xs">
+                  <span className="text-[10px] font-medium tabular-nums text-ink-muted">
                     · {listingCountLabel(listingCount, viewFilter)}
                   </span>
                 )}
               </span>
-              <span className="mt-0.5 block text-[10px] font-medium leading-snug text-ink-muted sm:text-[11px]">
-                Community map of events &amp; spots
-              </span>
             </span>
           </Link>
-          <div className="shrink-0">
-            <DarkModeToggle />
-          </div>
+          {showThemeToggle && (
+            <div className="shrink-0">
+              <DarkModeToggle />
+            </div>
+          )}
         </div>
       </header>
     );
@@ -97,7 +100,7 @@ export function Header({
               Islamabad Explore
             </span>
             <span className="mt-0.5 block text-xs font-medium text-ink-muted">
-              Community map of events &amp; spots
+              Community map of spots in Islamabad
             </span>
           </span>
         </Link>

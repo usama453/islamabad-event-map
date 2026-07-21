@@ -64,10 +64,9 @@ export function FiltersBar({
 
   const segments: { id: ViewFilter; label: string; count: number }[] = [
     { id: "place", label: "Spots", count: placeCount },
-    { id: "event", label: "Events", count: eventCount },
   ];
 
-  const showDate = viewFilter === "event";
+  const showDate = false;
   const activeFilterCount =
     selectedCategories.length + (showDate && dateFilter !== "upcoming" ? 1 : 0);
   const hasFilters = activeFilterCount > 0;

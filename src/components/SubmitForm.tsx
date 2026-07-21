@@ -7,6 +7,7 @@ import {
   type Category,
   type EntryType,
 } from "@/lib/constants";
+import { getOrCreateSubmitterId } from "@/lib/submitterId";
 
 type LocationMode = "map" | "text" | "tbd";
 
@@ -46,7 +47,7 @@ interface SubmitFormProps {
 
 export function SubmitForm({
   onSuccess,
-  defaultType = "event",
+  defaultType = "place",
   lockType = false,
   compact = false,
   lat: controlledLat,
@@ -55,7 +56,7 @@ export function SubmitForm({
   onPinModeChange,
   exitPinModeSignal = 0,
 }: SubmitFormProps) {
-  const [type, setType] = useState<EntryType>(defaultType);
+  const [type] = useState<EntryType>("place");
   const [title, setTitle] = useState("");
   const [organizerName, setOrganizerName] = useState("");
   const [description, setDescription] = useState("");
@@ -90,14 +91,10 @@ export function SubmitForm({
   };
 
   useEffect(() => {
-    setType(defaultType);
-  }, [defaultType]);
-
-  useEffect(() => {
-    if (type === "place" && locationMode === "tbd") {
+    if (locationMode === "tbd") {
       setLocationMode("map");
     }
-  }, [type, locationMode]);
+  }, [locationMode]);
 
   useEffect(() => {
     const active = locationMode === "map";
@@ -168,13 +165,6 @@ export function SubmitForm({
       if (target) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((p) => p.id !== id);
     });
-  };
-
-  const handleTypeChange = (next: EntryType) => {
-    setType(next);
-    if (next === "place" && locationMode === "tbd") {
-      setLocationMode("map");
-    }
   };
 
   const resetForm = () => {
@@ -266,6 +256,7 @@ export function SubmitForm({
       if (sourceUrl.trim()) form.set("sourceUrl", sourceUrl.trim());
       if (contactPhone.trim()) form.set("contactPhone", contactPhone.trim());
       form.set("website", honeypot);
+      form.set("submitterId", getOrCreateSubmitterId());
       for (const photo of photos) {
         form.append("photos", photo.file);
       }
@@ -298,7 +289,7 @@ export function SubmitForm({
     return (
       <div className="border border-line bg-wash px-4 py-6 text-center">
         <h2 className="font-display text-lg font-medium text-ink">
-          {type === "event" ? "Event submitted" : "Spot submitted"}
+          Spot submitted
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
           It&apos;s on the map now in amber as pending — an admin will verify it.
@@ -313,7 +304,7 @@ export function SubmitForm({
           onClick={resetForm}
           className="mt-5 text-sm font-medium text-ink underline underline-offset-4"
         >
-          {type === "event" ? "Add another event" : "Add another spot"}
+          Add another spot
         </button>
       </div>
     );
@@ -337,26 +328,9 @@ export function SubmitForm({
         />
       </div>
 
+      {/* Type is always Spot in the public UI */}
       {!lockType && (
-        <fieldset>
-          <legend className={labelClass}>Type</legend>
-          <div className={segment}>
-            <button
-              type="button"
-              onClick={() => handleTypeChange("event")}
-              className={segBtn(type === "event")}
-            >
-              Event
-            </button>
-            <button
-              type="button"
-              onClick={() => handleTypeChange("place")}
-              className={segBtn(type === "place")}
-            >
-              Spot
-            </button>
-          </div>
-        </fieldset>
+        <input type="hidden" name="type" value="place" readOnly />
       )}
 
       <div>

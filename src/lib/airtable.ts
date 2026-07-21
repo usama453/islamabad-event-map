@@ -69,16 +69,37 @@ function parsePhotos(value: unknown): string[] | undefined {
 
 function mapRecord(record: Airtable.Record<FieldSet>): Entry {
   const fields = record.fields;
-  const description = fields.Description
+  const rawDescription = fields.Description
     ? String(fields.Description)
     : undefined;
-  const contactFromDesc = description?.match(/^Contact:\s*(.+)$/im)?.[1]?.trim();
-  const organizerFromDesc = description
+  const contactFromDesc = rawDescription
+    ?.match(/^Contact:\s*(.+)$/im)?.[1]
+    ?.trim();
+  const organizerFromDesc = rawDescription
     ?.match(/^Organizer:\s*(.+)$/im)?.[1]
+    ?.trim();
+  const submitterFromDesc = rawDescription
+    ?.match(/^SubmitterId:\s*(.+)$/im)?.[1]
+    ?.trim();
+  const ipHashFromDesc = rawDescription
+    ?.match(/^IpHash:\s*(.+)$/im)?.[1]
     ?.trim();
   const organizerFromField = fields.Organizer
     ? String(fields.Organizer).trim()
     : "";
+  const submitterFromField = fields.SubmitterId
+    ? String(fields.SubmitterId).trim()
+    : "";
+  const ipHashFromField = fields.IpHash ? String(fields.IpHash).trim() : "";
+
+  // Never expose admin signal lines in the public description body
+  const description = rawDescription
+    ? rawDescription
+        .replace(/^SubmitterId:\s*.+$/gim, "")
+        .replace(/^IpHash:\s*.+$/gim, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim() || undefined
+    : undefined;
 
   return {
     id: record.id,
@@ -101,6 +122,8 @@ function mapRecord(record: Airtable.Record<FieldSet>): Entry {
     imageUrls: parsePhotos(fields.Photos),
     status: parseStatus(fields.Status),
     createdTime: record._rawJson.createdTime,
+    submitterId: submitterFromField || submitterFromDesc || undefined,
+    ipHash: ipHashFromField || ipHashFromDesc || undefined,
   };
 }
 
@@ -114,19 +137,36 @@ export async function fetchPublicEntries(): Promise<Entry[]> {
     })
     .all();
 
-  return records.map(mapRecord);
+  return records.map((record) => {
+    const entry = mapRecord(record);
+    // Keep device signals admin-only
+    delete entry.submitterId;
+    delete entry.ipHash;
+    return entry;
+  });
 }
 
 function buildDescription(
   input: CreateEntryInput,
-  includeOrganizerInDescription: boolean
+  options: {
+    includeOrganizerInDescription: boolean;
+    includeSubmitterSignalsInDescription: boolean;
+  }
 ): string | undefined {
   const metaLines: string[] = [];
-  if (includeOrganizerInDescription) {
+  if (options.includeOrganizerInDescription) {
     metaLines.push(`Organizer: ${input.organizerName.trim()}`);
   }
   if (input.contactPhone?.trim()) {
     metaLines.push(`Contact: ${input.contactPhone.trim()}`);
+  }
+  if (options.includeSubmitterSignalsInDescription) {
+    if (input.submitterId?.trim()) {
+      metaLines.push(`SubmitterId: ${input.submitterId.trim()}`);
+    }
+    if (input.ipHash?.trim()) {
+      metaLines.push(`IpHash: ${input.ipHash.trim()}`);
+    }
   }
   const body = input.description?.trim() ?? "";
   if (metaLines.length === 0) return body || undefined;
@@ -207,31 +247,81 @@ export async function createPendingEntry(
   if (input.sourceUrl) baseFields.SourceURL = input.sourceUrl;
   if (input.eventDate) baseFields.EventDate = input.eventDate;
   if (input.eventEndDate) baseFields.EventEndDate = input.eventEndDate;
+  if (input.submitterId) baseFields.SubmitterId = input.submitterId;
+  if (input.ipHash) baseFields.IpHash = input.ipHash;
 
   const table = getBase()(TABLE_NAME);
 
   let record: Airtable.Record<FieldSet>;
+  let includeOrganizerInDescription = false;
+  let includeSubmitterSignalsInDescription = false;
+
+  const tryCreate = async (fields: FieldSet) => {
+    const description = buildDescription(input, {
+      includeOrganizerInDescription,
+      includeSubmitterSignalsInDescription,
+    });
+    const next = { ...fields };
+    if (description) next.Description = description;
+    else delete next.Description;
+    return table.create([{ fields: next }]);
+  };
 
   try {
-    const description = buildDescription(input, false);
-    if (description) baseFields.Description = description;
-    const created = await table.create([{ fields: baseFields }]);
+    const created = await tryCreate(baseFields);
     record = created[0];
   } catch (error) {
-    // Base may not have Organizer column yet — fall back to Description metadata
-    if (!isUnknownFieldError(error, "Organizer")) throw error;
+    let fields: FieldSet = { ...baseFields };
+    let changed = false;
 
-    console.warn(
-      'Airtable is missing an "Organizer" single-line text field on Entries. ' +
-        "Add it in Airtable so names are queryable as a real column."
-    );
+    if (isUnknownFieldError(error, "Organizer")) {
+      console.warn(
+        'Airtable is missing an "Organizer" single-line text field on Entries. ' +
+          "Add it in Airtable so names are queryable as a real column."
+      );
+      delete fields.Organizer;
+      includeOrganizerInDescription = true;
+      changed = true;
+    }
+    if (
+      isUnknownFieldError(error, "SubmitterId") ||
+      isUnknownFieldError(error, "IpHash")
+    ) {
+      console.warn(
+        'Airtable is missing "SubmitterId" / "IpHash" single-line text fields on Entries. ' +
+          "Add them for cleaner admin grouping (signals will fall back into Description)."
+      );
+      delete fields.SubmitterId;
+      delete fields.IpHash;
+      includeSubmitterSignalsInDescription = true;
+      changed = true;
+    }
 
-    const withoutOrganizer: FieldSet = { ...baseFields };
-    delete withoutOrganizer.Organizer;
-    const description = buildDescription(input, true);
-    if (description) withoutOrganizer.Description = description;
-    const created = await table.create([{ fields: withoutOrganizer }]);
-    record = created[0];
+    if (!changed) throw error;
+
+    try {
+      const created = await tryCreate(fields);
+      record = created[0];
+    } catch (retryError) {
+      // Organizer may have worked but signal fields failed on second attempt, or vice versa
+      if (
+        isUnknownFieldError(retryError, "SubmitterId") ||
+        isUnknownFieldError(retryError, "IpHash")
+      ) {
+        delete fields.SubmitterId;
+        delete fields.IpHash;
+        includeSubmitterSignalsInDescription = true;
+        const created = await tryCreate(fields);
+        record = created[0];
+      } else if (isUnknownFieldError(retryError, "Organizer")) {
+        delete fields.Organizer;
+        includeOrganizerInDescription = true;
+        const created = await tryCreate(fields);
+        record = created[0];
+      } else {
+        throw retryError;
+      }
+    }
   }
 
   if (photos.length > 0) {
@@ -252,6 +342,144 @@ export async function createPendingEntry(
   }
 
   return { entry: mapRecord(record) };
+}
+
+/** All listings for admin (includes rejected; skips presence heartbeat rows). */
+export async function fetchAllEntries(): Promise<Entry[]> {
+  const records: Records<FieldSet> = await getBase()(TABLE_NAME).select().all();
+
+  return records
+    .map(mapRecord)
+    .filter((e) => !e.title.startsWith("__presence__:"))
+    .sort((a, b) => {
+      const order = { pending: 0, approved: 1, rejected: 2 } as const;
+      const byStatus = order[a.status] - order[b.status];
+      if (byStatus !== 0) return byStatus;
+      return (
+        new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime()
+      );
+    });
+}
+
+export async function updateEntryStatus(
+  id: string,
+  status: EntryStatus
+): Promise<Entry> {
+  const table = getBase()(TABLE_NAME);
+  const updated = await table.update([
+    { id, fields: { Status: status } },
+  ]);
+  return mapRecord(updated[0]);
+}
+
+export type UpdateEntryInput = Partial<
+  Pick<
+    CreateEntryInput,
+    | "type"
+    | "title"
+    | "description"
+    | "category"
+    | "organizerName"
+    | "lat"
+    | "lng"
+    | "locationText"
+    | "sourceUrl"
+    | "contactPhone"
+    | "eventDate"
+    | "eventEndDate"
+  >
+> & { status?: EntryStatus };
+
+export async function updateEntry(
+  id: string,
+  input: UpdateEntryInput
+): Promise<Entry> {
+  const table = getBase()(TABLE_NAME);
+  const fields: Record<string, unknown> = {};
+
+  if (input.type != null) {
+    fields.Type = input.type === "place" ? "Place" : "Event";
+  }
+  if (input.title != null) fields.Title = input.title.trim();
+  if (input.category != null) fields.Category = input.category;
+  if (input.status != null) fields.Status = input.status;
+  if (input.organizerName != null) {
+    fields.Organizer = input.organizerName.trim();
+  }
+  if (input.lat !== undefined) {
+    fields.Lat = input.lat == null ? null : input.lat;
+  }
+  if (input.lng !== undefined) {
+    fields.Lng = input.lng == null ? null : input.lng;
+  }
+  if (input.locationText !== undefined) {
+    fields.LocationText = input.locationText?.trim() || null;
+  }
+  if (input.sourceUrl !== undefined) {
+    fields.SourceURL = input.sourceUrl?.trim() || null;
+  }
+  if (input.eventDate !== undefined) {
+    fields.EventDate = input.eventDate?.trim() || null;
+  }
+  if (input.eventEndDate !== undefined) {
+    fields.EventEndDate = input.eventEndDate?.trim() || null;
+  }
+
+  // Rebuild Description when description and/or contact change
+  if (input.description !== undefined || input.contactPhone !== undefined) {
+    const existing = await table.find(id);
+    const current = mapRecord(existing);
+    const description = buildDescription(
+      {
+        type: input.type ?? current.type,
+        title: input.title ?? current.title,
+        category: input.category ?? current.category,
+        organizerName: input.organizerName ?? current.organizerName,
+        description:
+          input.description !== undefined
+            ? input.description
+            : current.description
+                ?.replace(/^Contact:\s*.+$/im, "")
+                .replace(/^Organizer:\s*.+$/im, "")
+                .trim(),
+        contactPhone:
+          input.contactPhone !== undefined
+            ? input.contactPhone
+            : current.contactPhone,
+        submitterId: current.submitterId,
+        ipHash: current.ipHash,
+      },
+      {
+        includeOrganizerInDescription: false,
+        // Keep description-fallback signals if Airtable columns were never added
+        includeSubmitterSignalsInDescription: Boolean(
+          current.submitterId || current.ipHash
+        ),
+      }
+    );
+    fields.Description = description || null;
+  }
+
+  const asFieldSet = fields as FieldSet;
+
+  try {
+    const updated = await table.update([{ id, fields: asFieldSet }]);
+    return mapRecord(updated[0]);
+  } catch (error) {
+    if (!isUnknownFieldError(error, "Organizer") || input.organizerName == null) {
+      throw error;
+    }
+    const withoutOrganizer = { ...fields };
+    delete withoutOrganizer.Organizer;
+    const updated = await table.update([
+      { id, fields: withoutOrganizer as FieldSet },
+    ]);
+    return mapRecord(updated[0]);
+  }
+}
+
+export async function deleteEntry(id: string): Promise<void> {
+  await getBase()(TABLE_NAME).destroy([id]);
 }
 
 const SUBSCRIBERS_TABLE = "Subscribers";

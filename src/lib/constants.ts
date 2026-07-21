@@ -41,12 +41,20 @@ export function normalizeCategory(value: unknown): Category {
   return legacy[raw] ?? "hidden";
 }
 
-/** Map pins — by entry type; pending overrides with amber */
+/** Map pins — candy palette, slightly deeper for map contrast */
 export const MAP_PIN_COLORS = {
-  event: "#D94A00",
-  place: "#0051FF",
-  pending: "#A67C00",
+  event: "#F06A8D",
+  place: "#4BA8E8",
+  pending: "#E8B43A",
 } as const;
+
+/** Per-category pin colors — candy tones, a notch darker than before */
+export const MAP_CATEGORY_PIN_COLORS: Record<Category, string> = {
+  food: "#F07A55",
+  scenic: "#4DBF8A",
+  hidden: "#A78BE8",
+  activity: "#4BA8E8",
+};
 
 /** Multiple Unsplash options per category so listings don't all share one photo */
 export const CATEGORY_IMAGE_POOLS: Record<Category, string[]> = {
@@ -135,11 +143,41 @@ export const ISLAMABAD_CENTER = {
   lng: 73.0479,
 };
 
-export const DEFAULT_ZOOM = 11;
+export const DEFAULT_ZOOM = 12;
+
+/** Flat top-down view */
+export const MAP_2D_PITCH = 0;
+/** Tilted perspective for 3D buildings and terrain */
+export const MAP_3D_PITCH = 77;
+export const MAX_MAP_PITCH = 85;
+export const DEFAULT_MAP_BEARING = 30;
+
+/** Launch fly-through: Faisal Mosque → city overview */
+export interface MapCameraView {
+  lng: number;
+  lat: number;
+  zoom: number;
+}
+
+export const LAUNCH_CAMERA = {
+  pitch: MAP_3D_PITCH,
+  bearing: DEFAULT_MAP_BEARING,
+  durationMs: 5200,
+  start: {
+    lng: 73.0372,
+    lat: 33.7299,
+    zoom: 16.5,
+  } satisfies MapCameraView,
+  end: {
+    lng: ISLAMABAD_CENTER.lng,
+    lat: ISLAMABAD_CENTER.lat,
+    zoom: DEFAULT_ZOOM,
+  } satisfies MapCameraView,
+} as const;
 
 export type EntryType = "event" | "place";
 
-/** Explore page filter — Events or Spots (one at a time) */
+/** Explore page filter — spots-only in the UI (event type still exists in data) */
 export type ViewFilter = EntryType;
 
 export type DateFilter = "today" | "week" | "upcoming";

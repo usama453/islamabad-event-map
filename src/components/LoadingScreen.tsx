@@ -80,7 +80,7 @@ export function LoadingScreen({
             Islamabad Explore
           </p>
           <p className="mt-0.5 text-xs font-medium text-ink-muted">
-            Community map of events &amp; spots
+            Community map of spots in Islamabad
           </p>
           <p className="mt-1 text-sm text-ink-muted">{label}</p>
         </div>

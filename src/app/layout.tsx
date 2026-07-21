@@ -20,10 +20,10 @@ const pixel = Press_Start_2P({
 });
 
 const siteDescription =
-  "A community map of events and spots in Islamabad — tap pins for gigs, markets, cafés, and hangouts, or add your own.";
+  "A community map of spots in Islamabad — tap pins for cafés, trails, hangouts, and hidden gems, or add your own.";
 
 export const metadata: Metadata = {
-  title: "Islamabad Explore — Community map of events & spots",
+  title: "Islamabad Explore — Community map of spots",
   description: siteDescription,
   openGraph: {
     title: "Islamabad Explore",

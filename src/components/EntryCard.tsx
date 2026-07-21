@@ -1,10 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { CATEGORY_LABELS } from "@/lib/constants";
 import type { Entry } from "@/lib/types";
 import {
-  entryOrganizerName,
   formatEventSchedule,
   getEntryImage,
   happeningSoonLabel,
@@ -18,6 +16,8 @@ interface EntryCardProps {
   isViewed?: boolean;
   /** Strongly dulled when outside the focused categories */
   isDimmed?: boolean;
+  /** Compact vertical card for the horizontal bottom rail */
+  variant?: "row" | "rail";
   onClick: () => void;
 }
 
@@ -54,6 +54,7 @@ export function EntryCard({
   isSelected,
   isViewed = false,
   isDimmed = false,
+  variant = "row",
   onClick,
 }: EntryCardProps) {
   const isEvent = entry.type === "event";
@@ -62,45 +63,129 @@ export function EntryCard({
   const soon = isEvent && isEventHappeningSoon(entry);
   const soonLabel = soon ? happeningSoonLabel(entry) : null;
   const isPending = entry.status === "pending";
-  const markedBy = entryOrganizerName(entry);
   const showViewed = isViewed && !isSelected && !isDimmed;
+
+  const tone = `${
+    isPending
+      ? isSelected
+        ? "entry-card-pending-selected border-transparent"
+        : "entry-card-pending"
+      : isSelected
+        ? isEvent
+          ? "entry-card-event-selected border-transparent"
+          : "btn-primary btn-primary-selected border-transparent"
+        : isEvent
+          ? "entry-card-event"
+          : "entry-card-place"
+  } ${
+    isDimmed && !isSelected
+      ? "opacity-[0.55] saturate-[0.6]"
+      : showViewed
+        ? "opacity-95 saturate-95"
+        : ""
+  }`;
+
+  if (variant === "rail") {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`group flex w-full flex-col overflow-hidden rounded-xl border text-left shadow-sm backdrop-blur-sm transition ${tone}`}
+      >
+        <div className="relative aspect-[5/4] w-full overflow-hidden bg-line">
+          <Image
+            src={image}
+            alt=""
+            fill
+            className={`object-cover transition duration-300 group-hover:scale-[1.03] ${
+              isPending ? "opacity-85 saturate-[0.7]" : ""
+            }`}
+            sizes="120px"
+          />
+          <span
+            className={`absolute left-1 top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-white shadow-sm ${
+              isPending
+                ? "bg-[var(--pending)]"
+                : isEvent
+                  ? "bg-[var(--orange)]"
+                  : ""
+            }`}
+            style={
+              !isPending && !isEvent
+                ? { backgroundColor: categoryColor(entry.category) }
+                : undefined
+            }
+            aria-hidden
+          >
+            {isEvent ? (
+              <EventIcon className="h-2 w-2" />
+            ) : (
+              <CategoryIcon
+                category={entry.category}
+                className="h-2 w-2"
+              />
+            )}
+          </span>
+        </div>
+        <div className="bg-surface/90 px-1.5 py-1">
+          {isPending && (
+            <span
+              className={`pending-badge mb-0.5 text-[8px] ${
+                isSelected ? "pending-badge-on-dark" : ""
+              }`}
+            >
+              Review
+            </span>
+          )}
+          {soonLabel && (
+            <span
+              className={`soon-badge mb-0.5 text-[8px] ${
+                isSelected ? "soon-badge-on-dark" : ""
+              }`}
+            >
+              <span className="soon-badge-dot" aria-hidden />
+              {soonLabel}
+            </span>
+          )}
+          <h3
+            className={`truncate text-[10px] font-semibold leading-snug ${
+              isSelected ? "text-white" : "text-ink"
+            }`}
+          >
+            {entry.title}
+          </h3>
+          {isEvent && (
+            <p
+              className={`mt-0.5 truncate text-[9px] font-medium ${
+                isSelected ? "text-white/90" : "text-ink-muted"
+              }`}
+            >
+              {schedule ?? "Date TBA"}
+            </p>
+          )}
+        </div>
+      </button>
+    );
+  }
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group flex w-full items-start gap-2 rounded-lg border p-1.5 text-left transition sm:gap-3.5 sm:rounded-xl sm:p-2 ${
-        isPending
-          ? isSelected
-            ? "entry-card-pending-selected border-transparent"
-            : "entry-card-pending"
-          : isSelected
-            ? isEvent
-              ? "entry-card-event-selected border-transparent"
-              : "btn-primary btn-primary-selected border-transparent"
-            : isEvent
-              ? "entry-card-event"
-              : "entry-card-place"
-      } ${
-        isDimmed && !isSelected
-          ? "opacity-[0.28] saturate-[0.35]"
-          : showViewed
-            ? "opacity-55 saturate-[0.65]"
-            : ""
-      }`}
+      className={`group flex w-full items-center gap-1.5 rounded-none border p-1 text-left transition sm:gap-2 sm:p-1.5 ${tone}`}
     >
-      <div className="relative h-[52px] w-[68px] shrink-0 overflow-hidden rounded-md bg-line sm:h-[80px] sm:w-[108px] sm:rounded-lg">
+      <div className="relative h-9 w-11 shrink-0 overflow-hidden rounded-none bg-line sm:h-10 sm:w-12">
         <Image
           src={image}
           alt=""
           fill
           className={`object-cover transition duration-300 group-hover:scale-[1.03] ${
-            isPending || showViewed ? "opacity-85 saturate-[0.7]" : ""
+            isPending ? "opacity-85 saturate-[0.7]" : ""
           }`}
-          sizes="108px"
+          sizes="48px"
         />
         <span
-          className={`absolute left-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-white shadow-sm sm:left-1.5 sm:top-1.5 sm:h-6 sm:w-6 ${
+          className={`absolute left-0.5 top-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-white shadow-sm sm:h-4 sm:w-4 ${
             isPending
               ? "bg-[var(--pending)]"
               : isEvent
@@ -115,28 +200,21 @@ export function EntryCard({
           aria-hidden
         >
           {isEvent ? (
-            <EventIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            <EventIcon className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
           ) : (
             <CategoryIcon
               category={entry.category}
-              className="h-3 w-3 sm:h-3.5 sm:w-3.5"
+              className="h-2 w-2 sm:h-2.5 sm:w-2.5"
             />
           )}
         </span>
       </div>
 
-      <div className="min-w-0 flex-1 py-0 sm:py-0.5">
-        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-          <span
-            className={`text-[10px] font-semibold uppercase tracking-wide sm:text-[11px] ${
-              isSelected ? "text-white/75" : "text-ink-muted"
-            }`}
-          >
-            {CATEGORY_LABELS[entry.category]}
-          </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1">
           {isPending && (
             <span
-              className={`pending-badge ${
+              className={`pending-badge text-[9px] ${
                 isSelected ? "pending-badge-on-dark" : ""
               }`}
             >
@@ -145,7 +223,7 @@ export function EntryCard({
           )}
           {soonLabel && (
             <span
-              className={`soon-badge ${isSelected ? "soon-badge-on-dark" : ""}`}
+              className={`soon-badge text-[9px] ${isSelected ? "soon-badge-on-dark" : ""}`}
             >
               <span className="soon-badge-dot" aria-hidden />
               {soonLabel}
@@ -154,7 +232,7 @@ export function EntryCard({
         </div>
 
         <h3
-          className={`mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug sm:mt-1 sm:text-[15px] ${
+          className={`line-clamp-2 text-[11px] font-semibold leading-snug sm:text-xs ${
             isSelected ? "text-white" : "text-ink"
           }`}
         >
@@ -163,7 +241,7 @@ export function EntryCard({
 
         {isEvent && (
           <p
-            className={`mt-0.5 flex items-center gap-1 truncate text-xs font-medium sm:mt-1.5 sm:gap-1.5 sm:text-sm ${
+            className={`mt-0.5 flex items-center gap-0.5 truncate text-[10px] font-medium sm:text-[11px] ${
               isSelected
                 ? "text-white/90"
                 : isPending
@@ -171,18 +249,8 @@ export function EntryCard({
                   : "entry-meta-event"
             }`}
           >
-            <EventIcon className="h-3 w-3 shrink-0 opacity-80 sm:h-3.5 sm:w-3.5" />
+            <EventIcon className="h-2.5 w-2.5 shrink-0 opacity-80" />
             <span className="truncate">{schedule ?? "Date TBA"}</span>
-          </p>
-        )}
-
-        {markedBy && (
-          <p
-            className={`mt-0.5 truncate text-xs sm:mt-1 sm:text-sm ${
-              isSelected ? "text-white/80" : "text-ink-muted"
-            }`}
-          >
-            by {markedBy}
           </p>
         )}
 
@@ -192,7 +260,7 @@ export function EntryCard({
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className={`mt-0.5 inline-block text-xs font-medium underline-offset-2 hover:underline sm:mt-1 sm:text-sm ${
+            className={`mt-0.5 inline-block text-[10px] font-medium underline-offset-2 hover:underline ${
               isSelected ? "text-white" : "text-ink"
             }`}
           >

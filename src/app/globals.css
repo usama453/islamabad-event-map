@@ -440,6 +440,43 @@
   .mapboxgl-ctrl-top-right .mapboxgl-ctrl-group {
     display: none !important;
   }
+
+  /* Attribution sits in the map pane; keep a small inset from the pane edge */
+  .mapboxgl-ctrl-bottom-right {
+    bottom: 0.5rem !important;
+    right: 0.5rem !important;
+  }
+}
+
+/* Quieter Mapbox logo + attribution (still visible — ToS required) */
+.mapboxgl-ctrl-logo {
+  opacity: 0.55;
+  transform: scale(0.72);
+  transform-origin: bottom right;
+  margin: 0 4px 2px 0 !important;
+}
+
+.mapboxgl-ctrl-attrib {
+  font-size: 9px !important;
+  line-height: 1.2 !important;
+  background: color-mix(in srgb, var(--surface) 72%, transparent) !important;
+  color: var(--ink-muted) !important;
+  backdrop-filter: blur(6px);
+  border-radius: 6px !important;
+  padding: 2px 5px !important;
+  margin: 0 4px 4px 0 !important;
+  box-shadow: none !important;
+  opacity: 0.85;
+}
+
+.mapboxgl-ctrl-attrib a {
+  color: var(--ink-muted) !important;
+}
+
+.mapboxgl-ctrl-attrib-button {
+  background-color: color-mix(in srgb, var(--surface) 80%, transparent) !important;
+  border-radius: 6px !important;
+  opacity: 0.75;
 }
 
 .dark .mapboxgl-ctrl-group {
@@ -466,6 +503,44 @@
   box-shadow: 0 0 0 1px var(--line-strong) !important;
 }
 
+.dark .map-3d-toggle {
+  background: var(--surface-raised);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.dark .map-view-controls {
+  background: color-mix(in srgb, var(--surface-raised) 95%, transparent);
+  border-color: var(--line-strong);
+}
+
+.map-view-slider {
+  height: 4px;
+  appearance: none;
+  border-radius: 999px;
+  background: var(--line);
+  accent-color: var(--btn);
+  cursor: pointer;
+}
+
+.map-view-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--btn);
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.map-view-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--btn);
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
 
 html,
 body {
@@ -503,6 +578,12 @@ body {
   color: var(--ink);
 }
 
+.mapboxgl-map {
+  /* Trap marker z-indexes so the detail card and other overlays stay above pins */
+  z-index: 0;
+  isolation: isolate;
+}
+
 .mapboxgl-popup-content {
   border-radius: 16px;
   padding: 0;
@@ -518,7 +599,14 @@ body {
   max-width: min(360px, calc(100vw - 32px));
   /* Grow with content; only clip/scroll when the viewport is too short */
   max-height: none;
-  overflow: hidden;
+  overflow: visible;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.entry-map-popup .mapboxgl-popup-tip {
+  display: none;
 }
 
 @media (max-height: 640px) {
@@ -553,6 +641,28 @@ body {
 
 .map-popup-card {
   color: var(--ink);
+}
+
+.map-mobile-sheet {
+  border-radius: 18px 18px 0 0;
+  animation: map-mobile-sheet-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes map-mobile-sheet-in {
+  from {
+    opacity: 0.65;
+    translate: 0 12%;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-mobile-sheet {
+    animation: none;
+  }
 }
 
 .pin-tooltip {
