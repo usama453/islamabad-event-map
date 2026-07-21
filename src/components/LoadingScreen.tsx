@@ -47,7 +47,8 @@ export function LoadingScreen({
     }, wait);
   }, [ready, minDuration]);
 
-  // Absolute failsafe
+  // Absolute failsafe — long enough for Standard style + terrain to settle
+  // before we uncover the map (see AppSplash / onMapReadyToShow).
   useEffect(() => {
     const t = window.setTimeout(() => {
       if (finished.current) return;
@@ -55,7 +56,7 @@ export function LoadingScreen({
       setExiting(true);
       setGone(true);
       onDoneRef.current?.();
-    }, 4000);
+    }, 10000);
     return () => window.clearTimeout(t);
   }, []);
 
@@ -141,7 +142,7 @@ export function AppSplash({ children, ready, onIntroDone }: AppSplashProps) {
 
   useEffect(() => {
     if (!showSplash) return;
-    const t = window.setTimeout(dismiss, 5000);
+    const t = window.setTimeout(dismiss, 12000);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSplash]);

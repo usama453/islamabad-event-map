@@ -34,10 +34,10 @@ export function CategoryStrip({
           role="option"
           aria-selected={isAllActive}
           onClick={() => onChange([])}
-          className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm backdrop-blur-sm transition ${
+          className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition ${
             isAllActive
               ? "border-transparent bg-[var(--btn)] text-white"
-              : "border-line bg-surface/90 text-ink-muted hover:text-ink"
+              : "border-line bg-surface text-ink-muted hover:text-ink"
           }`}
         >
           All
@@ -52,10 +52,10 @@ export function CategoryStrip({
               role="option"
               aria-selected={isActive}
               onClick={() => onChange([category])}
-              className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm backdrop-blur-sm transition ${
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition ${
                 isActive
                   ? "border-transparent text-white"
-                  : "border-line bg-surface/90 text-ink-muted hover:text-ink"
+                  : "border-line bg-surface text-ink-muted hover:text-ink"
               }`}
               style={isActive ? { backgroundColor: color } : undefined}
             >

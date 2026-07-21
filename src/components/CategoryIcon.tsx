@@ -1,18 +1,11 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  Binoculars,
-  Footprints,
-  MapPinned,
-  UtensilsCrossed,
-} from "lucide-react";
+import { MapPinned, UtensilsCrossed } from "lucide-react";
 import type { Category } from "@/lib/constants";
 import { CATEGORY_COLORS } from "@/lib/constants";
 
 const CATEGORY_ICONS: Record<Category, LucideIcon> = {
-  food: UtensilsCrossed,
-  scenic: Binoculars,
   hidden: MapPinned,
-  activity: Footprints,
+  food: UtensilsCrossed,
 };
 
 export function categoryColor(category: Category): string {

@@ -139,15 +139,79 @@ export function disableMapTerrain(map: MapboxMap) {
   map.setTerrain(null);
 }
 
-/** Match Mapbox Standard basemap to app light/dark theme */
-export function setStandardLightPreset(map: MapboxMap, theme: "light" | "dark") {
+/** Atmosphere tuned to match Standard light presets (day / dusk / night) */
+const FOG_BY_THEME: Record<
+  "light" | "dusk" | "dark",
+  {
+    range: [number, number];
+    color: string;
+    "high-color": string;
+    "horizon-blend": number;
+    "space-color": string;
+    "star-intensity": number;
+  }
+> = {
+  light: {
+    range: [0.8, 12],
+    color: "rgb(186, 210, 235)",
+    "high-color": "rgb(36, 92, 223)",
+    "horizon-blend": 0.08,
+    "space-color": "rgb(210, 225, 240)",
+    "star-intensity": 0,
+  },
+  dusk: {
+    // Wide horizon-blend so the warm band fades into space instead of a hard cut
+    range: [0.5, 12],
+    color: "rgb(110, 65, 70)",
+    "high-color": "rgb(95, 50, 75)",
+    "horizon-blend": 0.48,
+    "space-color": "rgb(22, 12, 28)",
+    "star-intensity": 0.22,
+  },
+  dark: {
+    range: [0.5, 10],
+    color: "rgb(18, 28, 48)",
+    "high-color": "rgb(8, 14, 40)",
+    "horizon-blend": 0.1,
+    "space-color": "rgb(2, 4, 12)",
+    "star-intensity": 0.55,
+  },
+};
+
+/** Hide fog, or restore atmosphere matched to the current theme */
+export function setMapFogEnabled(
+  map: MapboxMap,
+  enabled: boolean,
+  theme: "light" | "dusk" | "dark" = "light"
+) {
+  try {
+    if (!enabled) {
+      map.setFog(null);
+      return;
+    }
+    map.setFog(FOG_BY_THEME[theme]);
+  } catch {
+    // Style may not support fog
+  }
+}
+
+/** Mapbox Standard lightPreset for the app theme */
+export function standardLightPreset(
+  theme: "light" | "dusk" | "dark"
+): "day" | "dusk" | "night" {
+  if (theme === "dark") return "night";
+  if (theme === "dusk") return "dusk";
+  return "day";
+}
+
+/** Match Mapbox Standard basemap to app theme */
+export function setStandardLightPreset(
+  map: MapboxMap,
+  theme: "light" | "dusk" | "dark"
+) {
   if (!map.getStyle()?.imports) return;
   try {
-    map.setConfigProperty(
-      "basemap",
-      "lightPreset",
-      theme === "dark" ? "night" : "day"
-    );
+    map.setConfigProperty("basemap", "lightPreset", standardLightPreset(theme));
   } catch {
     // Style may not be Standard — ignore
   }

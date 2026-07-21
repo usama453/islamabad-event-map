@@ -42,8 +42,12 @@ const themeScript = `
 (function() {
   try {
     var stored = localStorage.getItem('islamabad-map-theme');
-    var dark = stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    if (dark) document.documentElement.classList.add('dark');
+    var root = document.documentElement;
+    if (stored === 'dark') root.classList.add('dark');
+    else if (stored === 'dusk') root.classList.add('dusk');
+    else if (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      root.classList.add('dark');
+    }
   } catch (e) {}
 })();
 `;

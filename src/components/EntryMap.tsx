@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Map, {
   Marker,
   Popup,
-  NavigationControl,
   AttributionControl,
 } from "react-map-gl/mapbox";
 import type { MapRef } from "react-map-gl/mapbox";
@@ -16,6 +15,9 @@ import {
   MAP_CATEGORY_PIN_COLORS,
   ISLAMABAD_CENTER,
   DEFAULT_ZOOM,
+  MAP_MAX_BOUNDS,
+  MAP_MIN_ZOOM,
+  MAP_MAX_ZOOM,
   MAP_2D_PITCH,
   MAP_3D_PITCH,
   MAX_MAP_PITCH,
@@ -30,11 +32,13 @@ import {
   disableMapTerrain,
   enableMapTerrain,
   hideBlockedPlaceLabels,
+  setMapFogEnabled,
   setStandardLightPreset,
+  standardLightPreset,
   whenStyleReady,
   type MapBasemapOptions,
 } from "@/lib/map3d";
-import { animateLaunchCamera, getUserLocation } from "@/lib/mapLaunchCamera";
+import { animateLaunchCamera, parkLaunchCameraOpening } from "@/lib/mapLaunchCamera";
 import {
   entryOrganizerName,
   formatEventSchedule,
@@ -75,6 +79,10 @@ interface EntryMapProps {
   focusedCategories?: Category[];
   /** Fires once the launch fly-through settles (or immediately if it won't run) */
   onLaunchCameraDone?: () => void;
+  /** Fires once the map is painted & configured — keep splash up until then */
+  onMapReadyToShow?: () => void;
+  /** Splash has dismissed — start the launch fly-through now */
+  startLaunchCamera?: boolean;
 }
 
 function EventPinIcon({ className }: { className?: string }) {
@@ -393,6 +401,8 @@ function MapToolsMenu({
   onResetView,
   basemapOptions,
   onBasemapChange,
+  fogEnabled,
+  onFogEnabledChange,
   onInteract,
 }: {
   is3D: boolean;
@@ -404,12 +414,14 @@ function MapToolsMenu({
   onResetView: () => void;
   basemapOptions: MapBasemapOptions;
   onBasemapChange: (next: MapBasemapOptions) => void;
+  fogEnabled: boolean;
+  onFogEnabledChange: (next: boolean) => void;
   onInteract: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="map-view-controls pointer-events-auto absolute right-2 top-[3.75rem] z-20 sm:right-3">
+    <div className="map-view-controls pointer-events-auto absolute right-2 top-[calc(0.5rem+2.25rem+0.5rem)] z-20 sm:right-3">
       {!open ? (
         <button
           type="button"
@@ -420,7 +432,7 @@ function MapToolsMenu({
           }}
           aria-label="Map options"
           aria-expanded={false}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink shadow-sm transition hover:bg-wash"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink-muted shadow-sm transition hover:bg-wash hover:text-ink"
         >
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
             <path
@@ -543,6 +555,18 @@ function MapToolsMenu({
               Layers
             </span>
             <div className="flex flex-col gap-1">
+              <label className="flex cursor-pointer items-center justify-between gap-2 text-[11px] text-ink">
+                <span className="text-ink-muted">Atmosphere / fog</span>
+                <input
+                  type="checkbox"
+                  checked={fogEnabled}
+                  onChange={(e) => {
+                    onInteract();
+                    onFogEnabledChange(e.target.checked);
+                  }}
+                  className="h-3.5 w-3.5 accent-[var(--blue)]"
+                />
+              </label>
               {LAYER_TOGGLES.map(({ key, label }) => (
                 <label
                   key={key}
@@ -585,11 +609,16 @@ export function EntryMap({
   viewedIds,
   focusedCategories = [],
   onLaunchCameraDone,
+  onMapReadyToShow,
+  startLaunchCamera = false,
 }: EntryMapProps) {
   const mapRef = useRef<MapRef>(null);
   const mapPaneRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
   const [isMobile, setIsMobile] = useState(false);
+  const [mapVisible, setMapVisible] = useState(false);
+  const [launchPrepared, setLaunchPrepared] = useState(false);
+  const mapReadyToShowFired = useRef(false);
   const [popupEntry, setPopupEntry] = useState<Entry | null>(null);
   const [panelPos, setPanelPos] = useState<{
     left: number;
@@ -635,6 +664,7 @@ export function EntryMap({
   const [basemapOptions, setBasemapOptions] = useState<MapBasemapOptions>(
     DEFAULT_BASEMAP_OPTIONS
   );
+  const [fogEnabled, setFogEnabled] = useState(true);
   const saved3DView = useRef({ pitch: MAP_3D_PITCH, bearing: DEFAULT_MAP_BEARING });
   const suppressMapClick = useRef(false);
   const launchCameraPlayed = useRef(false);
@@ -644,21 +674,22 @@ export function EntryMap({
       : !window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
   const launchCameraDoneFired = useRef(false);
+  const onMapReadyToShowRef = useRef(onMapReadyToShow);
+  onMapReadyToShowRef.current = onMapReadyToShow;
+  const onLaunchCameraDoneRef = useRef(onLaunchCameraDone);
+  onLaunchCameraDoneRef.current = onLaunchCameraDone;
+
   const fireLaunchCameraDone = useCallback(() => {
     if (launchCameraDoneFired.current) return;
     launchCameraDoneFired.current = true;
-    onLaunchCameraDone?.();
-  }, [onLaunchCameraDone]);
+    onLaunchCameraDoneRef.current?.();
+  }, []);
 
-  // Ask for the visitor's location as early as possible (mount, not map-load)
-  // so it very likely has already resolved by the time the launch fly-through
-  // starts. The animation itself never waits on this — if it's not ready yet,
-  // we just fall back to the city-center destination instead of delaying.
-  const userLocationResult = useRef<{ lat: number; lng: number } | null>(null);
-  useEffect(() => {
-    getUserLocation(8000).then((loc) => {
-      userLocationResult.current = loc;
-    });
+  const revealMap = useCallback(() => {
+    setMapVisible(true);
+    if (mapReadyToShowFired.current) return;
+    mapReadyToShowFired.current = true;
+    onMapReadyToShowRef.current?.();
   }, []);
 
   const mappableEntries = entries.filter(hasCoordinates);
@@ -733,18 +764,82 @@ export function EntryMap({
     };
   }, [mapReady, mappableIdsKey, recomputePinDepthOrder]);
 
-  // Launch fly-through: Faisal Mosque → visitor's location (or city overview)
+  // Prepare under splash (terrain / fog / opening pose). Flight starts separately
+  // once the splash dismisses (`startLaunchCamera`) so the user actually sees it.
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map || !mapReady || pinMode) return;
 
-    // No fly-through will ever run for this session (2D mode, reduced motion,
-    // or it already played) — let dependents (e.g. the sidebar reveal) know
-    // right away instead of waiting forever.
-    if (!is3D || launchCameraPlayed.current) {
-      fireLaunchCameraDone();
+    const prepareUnderSplash = () => {
+      if (is3D) {
+        enableMapTerrain(map);
+        setStandardLightPreset(map, theme);
+        applyStandardBasemapOptions(map, basemapOptions);
+      } else if (theme === "dusk") {
+        setStandardLightPreset(map, "dusk");
+        applyStandardBasemapOptions(map, basemapOptions);
+      } else {
+        applyLegacyBasemapOptions(map, basemapOptions);
+      }
+      setMapFogEnabled(map, fogEnabled, theme);
+    };
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    const skipFlight = !is3D || reduceMotion;
+
+    if (skipFlight) {
+      if (reduceMotion) launchCameraActive.current = false;
+      const cancelReady = whenStyleReady(map, () => {
+        prepareUnderSplash();
+        const reveal = () => revealMap();
+        map.once("idle", reveal);
+        window.setTimeout(reveal, 1200);
+        fireLaunchCameraDone();
+      });
+      return cancelReady;
+    }
+
+    let settleTimer = 0;
+    let onIdle: (() => void) | null = null;
+
+    const cancelReady = whenStyleReady(map, () => {
+      map.stop();
+      prepareUnderSplash();
+      parkLaunchCameraOpening(map);
+      launchCameraActive.current = true;
+      setLaunchPrepared(true);
+
+      const show = () => {
+        window.clearTimeout(settleTimer);
+        if (onIdle) map.off("idle", onIdle);
+        onIdle = null;
+        revealMap();
+      };
+
+      onIdle = show;
+      map.once("idle", show);
+      settleTimer = window.setTimeout(show, 2000);
+    });
+
+    return () => {
+      cancelReady();
+      window.clearTimeout(settleTimer);
+      if (onIdle) map.off("idle", onIdle);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prepare once at mapReady
+  }, [mapReady, is3D, pinMode, fireLaunchCameraDone, revealMap]);
+
+  // Start the fly-through only after the splash has dismissed
+  useEffect(() => {
+    if (!startLaunchCamera || !mapReady || !launchPrepared || !is3D || pinMode) {
       return;
     }
+    if (launchCameraPlayed.current) return;
+
+    const map = mapRef.current?.getMap();
+    if (!map) return;
 
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
@@ -755,25 +850,16 @@ export function EntryMap({
       return;
     }
 
+    launchCameraPlayed.current = true;
+    launchCameraActive.current = true;
+
+    let startTimer = 0;
     let cancelAnimation: (() => void) | null = null;
-    // Wait until Standard imports finish — mutating/animating too early
-    // leaves the map blank (0 layers, no tiles).
-    const cancelReady = whenStyleReady(map, () => {
-      if (launchCameraPlayed.current) return;
-      launchCameraPlayed.current = true;
-      launchCameraActive.current = true;
 
-      const loc = userLocationResult.current;
-      const end = loc
-        ? { lng: loc.lng, lat: loc.lat, zoom: LAUNCH_CAMERA.end.zoom }
-        : LAUNCH_CAMERA.end;
-
+    // Brief beat after splash fade so the opening frame paints, then fly.
+    startTimer = window.setTimeout(() => {
       cancelAnimation = animateLaunchCamera(
         map,
-        LAUNCH_CAMERA.start,
-        end,
-        LAUNCH_CAMERA.pitch,
-        LAUNCH_CAMERA.bearing,
         LAUNCH_CAMERA.durationMs,
         () => {
           saved3DView.current = {
@@ -786,13 +872,22 @@ export function EntryMap({
           fireLaunchCameraDone();
         }
       );
-    });
+    }, 120);
 
     return () => {
-      cancelReady();
+      window.clearTimeout(startTimer);
       cancelAnimation?.();
+      // Strict Mode remounts / cancelled runs should be allowed to retry
+      launchCameraPlayed.current = false;
     };
-  }, [mapReady, is3D, pinMode, fireLaunchCameraDone]);
+  }, [
+    startLaunchCamera,
+    launchPrepared,
+    mapReady,
+    is3D,
+    pinMode,
+    fireLaunchCameraDone,
+  ]);
 
   // Terrain + pitch when toggling 2D / 3D
   useEffect(() => {
@@ -800,6 +895,8 @@ export function EntryMap({
     if (!map || !mapReady || launchCameraActive.current) return;
 
     const cancelReady = whenStyleReady(map, () => {
+      // Launch fly-through may have started while we waited for style-ready.
+      if (launchCameraActive.current) return;
       if (is3D) {
         enableMapTerrain(map);
         const { pitch: p, bearing: b } = saved3DView.current;
@@ -838,6 +935,56 @@ export function EntryMap({
       map.off("moveend", sync);
     };
   }, [mapReady, is3D]);
+
+  // After pitch / rotate / pan / zoom (esp. two-finger gestures), the browser
+  // often synthesizes a click under a finger — which would open a pin detail.
+  // Suppress pin + map clicks for a short window after those gestures.
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapReady) return;
+
+    let releaseTimer = 0;
+    const arm = () => {
+      window.clearTimeout(releaseTimer);
+      suppressMapClick.current = true;
+    };
+    const release = () => {
+      window.clearTimeout(releaseTimer);
+      // Long enough to eat the synthetic click after finger-up
+      releaseTimer = window.setTimeout(() => {
+        suppressMapClick.current = false;
+      }, 400);
+    };
+
+    const gestureStarts = [
+      "dragstart",
+      "zoomstart",
+      "rotatestart",
+      "pitchstart",
+    ] as const;
+    const gestureEnds = [
+      "dragend",
+      "zoomend",
+      "rotateend",
+      "pitchend",
+    ] as const;
+
+    for (const ev of gestureStarts) map.on(ev, arm);
+    for (const ev of gestureEnds) map.on(ev, release);
+
+    const canvas = map.getCanvas();
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length >= 2) arm();
+    };
+    canvas.addEventListener("touchstart", onTouchStart, { passive: true });
+
+    return () => {
+      window.clearTimeout(releaseTimer);
+      for (const ev of gestureStarts) map.off(ev, arm);
+      for (const ev of gestureEnds) map.off(ev, release);
+      canvas.removeEventListener("touchstart", onTouchStart);
+    };
+  }, [mapReady]);
 
   const blockMapClick = useCallback(() => {
     suppressMapClick.current = true;
@@ -878,9 +1025,13 @@ export function EntryMap({
         enableMapTerrain(map);
         setStandardLightPreset(map, theme);
         applyStandardBasemapOptions(map, basemapOptions);
+      } else if (theme === "dusk") {
+        setStandardLightPreset(map, "dusk");
+        applyStandardBasemapOptions(map, basemapOptions);
       } else {
         applyLegacyBasemapOptions(map, basemapOptions);
       }
+      setMapFogEnabled(map, fogEnabled, theme);
     };
 
     let cancelNested: (() => void) | null = null;
@@ -896,7 +1047,17 @@ export function EntryMap({
       cancelReady();
       cancelNested?.();
     };
-  }, [mapReady, is3D, theme, basemapOptions]);
+  }, [mapReady, is3D, theme, basemapOptions, fogEnabled]);
+
+  // Fog toggle (also re-applied after style / theme changes above)
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapReady) return;
+    const cancelReady = whenStyleReady(map, () => {
+      setMapFogEnabled(map, fogEnabled, theme);
+    });
+    return cancelReady;
+  }, [mapReady, fogEnabled, theme]);
 
   // Hide denylisted place names (e.g. CHOUR HARPAL) when place labels are on
   useEffect(() => {
@@ -1005,14 +1166,18 @@ export function EntryMap({
       const map = mapRef.current?.getMap();
       const w = map?.getContainer().clientWidth ?? 600;
       const mobile = window.matchMedia("(max-width: 1023px)").matches;
+      // Read live camera from the map — don't close over pitch/bearing state
+      // or every two-finger tilt recreates this callback and re-opens the card.
+      const livePitch = map?.getPitch() ?? pitch;
+      const liveBearing = map?.getBearing() ?? bearing;
 
       if (mobile) {
         // Map pane is already squeezed by the sheet — center the pin in it
         mapRef.current?.flyTo({
           center: [entry.lng!, entry.lat!],
           zoom: Math.max(mapRef.current.getZoom() ?? DEFAULT_ZOOM, 13.5),
-          pitch: is3D ? (map?.getPitch() ?? pitch) : MAP_2D_PITCH,
-          bearing: is3D ? (map?.getBearing() ?? bearing) : 0,
+          pitch: is3D ? livePitch : MAP_2D_PITCH,
+          bearing: is3D ? liveBearing : 0,
           duration: 900,
           easing: easeInOutCubic,
           padding: { top: 56, bottom: 40, left: 28, right: 28 },
@@ -1026,16 +1191,19 @@ export function EntryMap({
       mapRef.current?.flyTo({
         center: [entry.lng!, entry.lat!],
         zoom: Math.max(mapRef.current.getZoom() ?? DEFAULT_ZOOM, 13.5),
-        pitch: is3D ? (map?.getPitch() ?? pitch) : MAP_2D_PITCH,
-        bearing: is3D ? (map?.getBearing() ?? bearing) : 0,
+        pitch: is3D ? livePitch : MAP_2D_PITCH,
+        bearing: is3D ? liveBearing : 0,
         duration: 1300,
         easing: easeInOutCubic,
         padding: { top: 56, bottom: 56, left: 48, right: rightPad },
         essential: true,
       });
     },
-    [pinMode, is3D, pitch, bearing]
+    [pinMode, is3D]
   );
+
+  const focusPinNearCardRef = useRef(focusPinNearCard);
+  focusPinNearCardRef.current = focusPinNearCard;
 
   const updatePanelPos = useCallback(() => {
     if (!popupEntry || !hasCoordinates(popupEntry)) {
@@ -1153,9 +1321,12 @@ export function EntryMap({
     if (flyToEntry && hasCoordinates(flyToEntry) && !pinMode) {
       setPopupEntry(flyToEntry);
       setHoveredId(null);
-      focusPinNearCard(flyToEntry);
+      focusPinNearCardRef.current(flyToEntry);
     }
-  }, [flyToEntry, pinMode, focusPinNearCard]);
+    // Only when the fly-to target changes — not when focusPinNearCard identity
+    // changes (that used to re-open the last card on every pitch/rotate).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flyToEntry, pinMode]);
 
   useEffect(() => {
     if (draftPin && pinMode) {
@@ -1172,6 +1343,7 @@ export function EntryMap({
   const handleMarkerClick = useCallback(
     (entry: Entry) => {
       if (pinMode) return;
+      if (suppressMapClick.current || launchCameraActive.current) return;
       setSuggestPrompt(null);
       onSelect(entry);
       setPopupEntry(entry);
@@ -1236,7 +1408,12 @@ export function EntryMap({
 
   return (
     <div ref={shellRef} className="relative z-0 flex h-full w-full flex-col">
-      <div ref={mapPaneRef} className="relative min-h-0 flex-1">
+      <div
+        ref={mapPaneRef}
+        className={`relative min-h-0 flex-1 transition-opacity duration-300 ease-out ${
+          mapVisible ? "opacity-100" : "opacity-0"
+        }`}
+      >
         <Map
           ref={mapRef}
           mapboxAccessToken={MAPBOX_TOKEN}
@@ -1250,13 +1427,26 @@ export function EntryMap({
           style={{ width: "100%", height: "100%", zIndex: 0 }}
           attributionControl={false}
           logoPosition="bottom-right"
+          maxBounds={MAP_MAX_BOUNDS}
+          minZoom={MAP_MIN_ZOOM}
+          maxZoom={MAP_MAX_ZOOM}
           mapStyle={
-            is3D
+            is3D || theme === "dusk"
               ? "mapbox://styles/mapbox/standard"
               : theme === "dark"
                 ? "mapbox://styles/mapbox/dark-v11"
                 : "mapbox://styles/mapbox/streets-v12"
           }
+          // Bake time-of-day into Standard on create — avoids day→dusk flash.
+          {...((is3D || theme === "dusk")
+            ? {
+                config: {
+                  basemap: {
+                    lightPreset: standardLightPreset(theme),
+                  },
+                },
+              }
+            : {})}
           dragRotate={is3D}
           touchPitch={is3D}
           maxPitch={MAX_MAP_PITCH}
@@ -1285,14 +1475,15 @@ export function EntryMap({
             setHoveredId(null);
             onSelect(null);
             if (onSuggestAt) {
-              setSuggestPrompt({
-                lat: e.lngLat.lat,
-                lng: e.lngLat.lng,
-              });
+              // Toggle: second map click dismisses instead of moving/spawning
+              setSuggestPrompt((prev) =>
+                prev
+                  ? null
+                  : { lat: e.lngLat.lat, lng: e.lngLat.lng }
+              );
             }
           }}
         >
-          <NavigationControl position="top-right" showCompass={is3D} />
           <AttributionControl compact position="bottom-right" />
 
           {mappableEntries
@@ -1444,6 +1635,8 @@ export function EntryMap({
             onResetView={resetMapView}
             basemapOptions={basemapOptions}
             onBasemapChange={setBasemapOptions}
+            fogEnabled={fogEnabled}
+            onFogEnabledChange={setFogEnabled}
             onInteract={blockMapClick}
           />
         )}
@@ -1501,7 +1694,7 @@ export function EntryMap({
         )}
 
         {!pinMode && (
-          <ViewerTicker className="absolute left-2 top-[3.75rem] z-20 sm:left-3" />
+          <ViewerTicker className="absolute left-2 top-[calc(0.5rem+2.25rem+0.5rem)] z-20 sm:left-3" />
         )}
 
         {pinMode && (

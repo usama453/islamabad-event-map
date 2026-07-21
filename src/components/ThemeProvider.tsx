@@ -4,11 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useState,
 } from "react";
 
-type Theme = "light" | "dark";
+export type Theme = "light" | "dusk" | "dark";
+
+const THEME_ORDER: Theme[] = ["light", "dusk", "dark"];
 
 interface ThemeContextValue {
   theme: Theme;
@@ -23,22 +25,39 @@ const ThemeContext = createContext<ThemeContextValue>({
 const STORAGE_KEY = "islamabad-map-theme";
 
 function applyTheme(theme: Theme) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
+  const root = document.documentElement;
+  root.classList.toggle("dark", theme === "dark");
+  root.classList.toggle("dusk", theme === "dusk");
+}
+
+function isTheme(value: string | null): value is Theme {
+  return value === "light" || value === "dusk" || value === "dark";
 }
 
 function getInitialTheme(): Theme {
   if (typeof window === "undefined") return "light";
-  const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-  if (stored === "dark" || stored === "light") return stored;
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (isTheme(stored)) return stored;
+  // Prefer class already set by the blocking layout script (avoids day flash)
+  const root = document.documentElement;
+  if (root.classList.contains("dusk")) return "dusk";
+  if (root.classList.contains("dark")) return "dark";
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+function nextTheme(current: Theme): Theme {
+  const i = THEME_ORDER.indexOf(current);
+  return THEME_ORDER[(i + 1) % THEME_ORDER.length];
+}
 
-  useEffect(() => {
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  // Read storage/DOM synchronously on the client so the first paint isn't
+  // stuck on "light" while a useEffect catches up (map day→dusk flicker).
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+
+  useLayoutEffect(() => {
     const initial = getInitialTheme();
     setTheme(initial);
     applyTheme(initial);
@@ -46,7 +65,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
+      const next = nextTheme(prev);
       localStorage.setItem(STORAGE_KEY, next);
       applyTheme(next);
       return next;

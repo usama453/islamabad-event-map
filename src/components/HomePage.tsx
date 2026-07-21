@@ -33,6 +33,7 @@ const EntryMap = dynamic(
 export function HomePage() {
   const [allEntries, setAllEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mapReadyToShow, setMapReadyToShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewFilter] = useState<ViewFilter>("place");
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
@@ -127,6 +128,8 @@ export function HomePage() {
     if (entry) {
       setFlyToEntry(entry);
       setViewedIds(markEntryViewed(entry.id));
+    } else {
+      setFlyToEntry(null);
     }
   }, []);
 
@@ -152,6 +155,7 @@ export function HomePage() {
     () => setLaunchCameraDone(true),
     []
   );
+  const handleMapReadyToShow = useCallback(() => setMapReadyToShow(true), []);
 
   // Map + pins first; sidebar arrives once the launch camera fly-through
   // has settled into its final position (or right away if it never runs)
@@ -191,7 +195,7 @@ export function HomePage() {
   }, [loading]);
 
   return (
-    <AppSplash ready={!loading} onIntroDone={handleIntroDone}>
+    <AppSplash ready={!loading && mapReadyToShow} onIntroDone={handleIntroDone}>
       <InterestsModal
         open={showInterests}
         onContinue={handleInterestsContinue}
@@ -216,17 +220,19 @@ export function HomePage() {
             viewedIds={viewedIds}
             focusedCategories={selectedCategories}
             onLaunchCameraDone={handleLaunchCameraDone}
+            onMapReadyToShow={handleMapReadyToShow}
+            startLaunchCamera={introReady}
           />
         </div>
 
         {/* Top chrome — brand centered, controls on the sides */}
         {sidebarReady && (
           <div
-            className={`pointer-events-none absolute inset-x-0 top-0 z-30 px-2 pt-2 transition duration-500 ${
+            className={`pointer-events-none absolute inset-x-0 top-0 z-30 px-2 pt-2 transition duration-500 sm:px-3 ${
               mapExpanded ? "opacity-90" : "opacity-100"
             }`}
           >
-            <div className="relative flex h-10 items-center justify-between gap-2">
+            <div className="relative flex h-9 items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => setMapExpanded((v) => !v)}
@@ -262,7 +268,7 @@ export function HomePage() {
                 </div>
               </div>
 
-              <div className="pointer-events-auto relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface shadow-sm">
+              <div className="pointer-events-auto relative z-10 shrink-0">
                 <DarkModeToggle />
               </div>
             </div>

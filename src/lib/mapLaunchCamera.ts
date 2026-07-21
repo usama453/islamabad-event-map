@@ -1,5 +1,8 @@
-import type { Map as MapboxMap } from "mapbox-gl";
-import type { MapCameraView } from "@/lib/constants";
+import { MercatorCoordinate, type Map as MapboxMap } from "mapbox-gl";
+import {
+  LAUNCH_CAMERA_TRACK,
+  type LaunchKeyframe,
+} from "@/lib/launchCameraTrack";
 
 /** Try to read the visitor's current position; resolves null on denial/timeout */
 export function getUserLocation(
@@ -33,59 +36,99 @@ export function getUserLocation(
   });
 }
 
-/** Gentler ramp than cubic/quart — motion is visible sooner without feeling abrupt */
-function easeInOutQuad(t: number) {
-  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
 }
 
-function easeInOutCubic(t: number) {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+/** Sample the baked track at normalized time `u` (0→1). */
+function sampleBakedTrack(u: number): LaunchKeyframe {
+  const track = LAUNCH_CAMERA_TRACK;
+  const first = track[0];
+  const last = track[track.length - 1];
+  if (u <= first.t) return first;
+  if (u >= last.t) return last;
+
+  for (let i = 0; i < track.length - 1; i++) {
+    const a = track[i];
+    const b = track[i + 1];
+    if (u >= a.t && u <= b.t) {
+      const span = b.t - a.t || 1;
+      const local = (u - a.t) / span;
+      return {
+        t: u,
+        lng: lerp(a.lng, b.lng, local),
+        lat: lerp(a.lat, b.lat, local),
+        zoom: lerp(a.zoom, b.zoom, local),
+        pitch: lerp(a.pitch, b.pitch, local),
+        bearing: lerp(a.bearing, b.bearing, local),
+        eyeLng: lerp(a.eyeLng, b.eyeLng, local),
+        eyeLat: lerp(a.eyeLat, b.eyeLat, local),
+        altitude: lerp(a.altitude, b.altitude, local),
+      };
+    }
+  }
+
+  return last;
 }
 
-/** Animate standard map camera; end frame is the normal exploration view.
- * Zoom eases smoothly throughout while position lags behind at first, so the
- * motion reads as "zoom out, then glide into place" instead of an immediate
- * sideways pan. */
+/** Apply a baked free-camera eye pose (no DEM resampling). */
+function applyBakedPose(map: MapboxMap, view: LaunchKeyframe) {
+  const camera = map.getFreeCameraOptions();
+  camera.position = MercatorCoordinate.fromLngLat(
+    { lng: view.eyeLng, lat: view.eyeLat },
+    view.altitude
+  );
+  camera.setPitchBearing(view.pitch, view.bearing);
+  map.setFreeCameraOptions(camera);
+}
+
+/** Park on the opening baked frame so the first visible frame isn't mid-load. */
+export function parkLaunchCameraOpening(map: MapboxMap) {
+  const first = LAUNCH_CAMERA_TRACK[0];
+  map.jumpTo({
+    center: [first.lng, first.lat],
+    zoom: first.zoom,
+    pitch: first.pitch,
+    bearing: first.bearing,
+  });
+  applyBakedPose(map, first);
+}
+
+/**
+ * Play the pre-baked free-camera track. Poses were recorded with terrain off;
+ * playback keeps terrain on for mountains but never re-queries DEM for the eye.
+ */
 export function animateLaunchCamera(
   map: MapboxMap,
-  from: MapCameraView,
-  to: MapCameraView,
-  pitch: number,
-  bearing: number,
   durationMs: number,
   onComplete?: () => void
 ): () => void {
   let raf = 0;
+  const first = LAUNCH_CAMERA_TRACK[0];
+  const last = LAUNCH_CAMERA_TRACK[LAUNCH_CAMERA_TRACK.length - 1];
+
+  applyBakedPose(map, first);
+
   const startedAt = performance.now();
 
   const frame = (now: number) => {
-    const t = Math.min(1, (now - startedAt) / durationMs);
-    const zoomT = easeInOutQuad(t);
-    const panT = easeInOutCubic(t);
-    const lng = from.lng + (to.lng - from.lng) * panT;
-    const lat = from.lat + (to.lat - from.lat) * panT;
-    const zoom = from.zoom + (to.zoom - from.zoom) * zoomT;
+    const u = Math.min(1, (now - startedAt) / durationMs);
+    applyBakedPose(map, sampleBakedTrack(u));
 
-    map.jumpTo({
-      center: [lng, lat],
-      zoom,
-      pitch,
-      bearing,
-    });
-
-    if (t < 1) {
+    if (u < 1) {
       raf = requestAnimationFrame(frame);
     } else {
+      // Hand back to the normal camera API for gestures / UI.
+      map.jumpTo({
+        center: [last.lng, last.lat],
+        zoom: last.zoom,
+        pitch: last.pitch,
+        bearing: last.bearing,
+      });
       onComplete?.();
     }
   };
 
-  map.jumpTo({
-    center: [from.lng, from.lat],
-    zoom: from.zoom,
-    pitch,
-    bearing,
-  });
   raf = requestAnimationFrame(frame);
 
   return () => cancelAnimationFrame(raf);

@@ -1,8 +1,8 @@
 "use client";
 
-import Map, { Marker, NavigationControl } from "react-map-gl/mapbox";
+import Map, { Marker } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { ISLAMABAD_CENTER, DEFAULT_ZOOM } from "@/lib/constants";
+import { ISLAMABAD_CENTER, DEFAULT_ZOOM, MAP_MAX_BOUNDS, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from "@/lib/constants";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
@@ -38,9 +38,11 @@ export function PinMap({ lat, lng, onLocationChange, compact = false }: PinMapPr
         }}
         style={{ width: "100%", height: "100%" }}
         mapStyle="mapbox://styles/mapbox/streets-v12"
+        maxBounds={MAP_MAX_BOUNDS}
+        minZoom={MAP_MIN_ZOOM}
+        maxZoom={MAP_MAX_ZOOM}
         onClick={(e) => onLocationChange(e.lngLat.lat, e.lngLat.lng)}
       >
-        <NavigationControl position="top-right" showCompass={false} />
         {lat != null && lng != null && (
           <Marker latitude={lat} longitude={lng} anchor="bottom" color="#D94A00" />
         )}
